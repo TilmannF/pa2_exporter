@@ -11,9 +11,8 @@ Written for a small live venue that wanted its PA in the same monitoring stack
 as everything else: alert when the rack is dark, see how hard the limiters
 worked last night, and keep an audit trail of who changed what.
 
-> **Status: alpha.** Developed and verified against real hardware (firmware
-> 1.2.0.1), but not yet running as a permanent deployment. Metric names and
-> labels may still change before 1.0.
+> **Status: alpha.** Verified against real hardware (firmware 1.2.0.1) and
+> running at one venue. Metric names and labels may still change before 1.0.
 
 **Read-only by design.** The exporter only ever sends `connect`, `get`, `ls`
 and `sub`. It never sends `set`, so it cannot change your tunings, mutes or
@@ -138,6 +137,34 @@ secrets.
   rack down
 - Handles `SIGTERM`, so `docker stop` returns immediately
 
+## Grafana dashboard
+
+[`grafana/pa2_exporter-dashboard.json`](grafana/pa2_exporter-dashboard.json) —
+import via **Dashboards → New → Import → Upload JSON**, then pick your
+Prometheus data source. To provision it instead, drop the file into your
+dashboards directory and point a file provider at it.
+
+Variables: **Data source**, **Job**, **Device**, **Band**, **Channel**. Device
+is multi-select and drives every query, so one dashboard covers a whole fleet
+of PA2s. The level panels repeat per channel and per band, so selecting fewer
+bands gives a narrower dashboard rather than an emptier one.
+
+What it shows:
+
+- **Overview** — online state, availability across the range, loaded preset by
+  name, unsaved-edit flag, age of the newest pushed value, reconnects, firmware
+- **Program levels** — input level per channel drawn as a shaded peak/floor
+  band around the average, and post-mute output level per crossover band
+- **Dynamics** — limiter gain reduction per band, limiter threshold state as a
+  state timeline (under/knee/over), compressor reduction, input clips
+- **Routing and audit** — mute state timeline, output trim, active feedback
+  suppression filters, and settings changes per module, with preset recalls
+  marked as annotations across the time series
+
+Because the exporter stops publishing device state while the PA2 is
+unreachable, outages appear as honest gaps in the graphs rather than flat lines
+holding the last value.
+
 ## How it works
 
 The PA2 speaks a line-based ASCII protocol on **TCP port 19272** — the same
@@ -238,8 +265,9 @@ worth a look if this exporter is not what you need:
 - [x] Exporter with reconnect loop and rolling-window statistics
 - [x] Dockerfile + compose example
 - [x] Tests, lint, secret scanning, multi-arch CI + GHCR release workflow
-- [ ] First published image (repo pushed, `v0.1.0` tagged)
-- [ ] Grafana dashboard example and alert rules
+- [x] Published multi-arch images on GHCR and Docker Hub
+- [x] Grafana dashboard
+- [ ] Alert rules
 
 ## License
 
