@@ -12,25 +12,52 @@ permissions:
 jobs:
   image:
     runs-on: ubuntu-latest
+    env:
+      # Secrets cannot be used directly in `if:`, so they are surfaced as env
+      # first. Empty means "no Docker Hub configured" and every Docker Hub step
+      # is skipped — GHCR alone still publishes, and forks work untouched.
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
+
+      - name: Normalise image names to lowercase
+        # GHCR and Docker Hub both reject uppercase repository names, and
+        # github.repository preserves the owner's capitalisation.
+        run: |
+          echo "GHCR_IMAGE=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+          if [ -n "$DOCKERHUB_USER" ]; then
+            echo "DOCKERHUB_IMAGE=docker.io/$(echo "$DOCKERHUB_USER" | tr '[:upper:]' '[:lower:]')/pa2_exporter" >> "$GITHUB_ENV"
+          fi
+
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_USER != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          # One build, tagged for both registries and pushed to both.
+          images: |
+            ${{ env.GHCR_IMAGE }}
+            ${{ env.DOCKERHUB_IMAGE }}
           # v1.2.3 -> 1.2.3, 1.2, latest, plus the commit SHA.
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha
             type=raw,value=latest
+
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -40,3 +67,13 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Sync README to the Docker Hub description
+        # Without this the Docker Hub page is blank, which looks abandoned.
+        if: env.DOCKERHUB_USER != ''
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.DOCKERHUB_USER }}/pa2_exporter
+          short-description: ${{ github.event.repository.description }}

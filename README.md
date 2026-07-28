@@ -28,7 +28,7 @@ Not affiliated with dbx, Harman or the DriveRack product line — see
 docker run -d --name pa2_exporter -p 10048:10048 \
     -e PA2_HOST=192.0.2.10 \
     -e PA2_PASSWORD=secret \
-    ghcr.io/tilmannf/pa2_exporter:latest
+    ghcr.io/tilmannf/pa2_exporter:latest      # or: tilmannf/pa2_exporter:latest
 
 curl localhost:10048/metrics
 ```
@@ -115,6 +115,15 @@ Anything conflicting on your network can be moved with `PA2_EXPORTER_PORT`.
 - Single TCP session, no on-disk state, logs to stdout.
 
 ## Docker
+
+Images are published to both registries, identical content, multi-arch
+(amd64 + arm64):
+
+- `ghcr.io/tilmannf/pa2_exporter`
+- `tilmannf/pa2_exporter` (Docker Hub)
+
+Tags: `latest`, `X.Y.Z`, `X.Y`, and `sha-<commit>`. Pin a version for
+production; `latest` moves.
 
 See [`docker-compose.yml`](docker-compose.yml) for a deployment using Docker
 secrets.
