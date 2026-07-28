@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Floor is the version pyproject claims to support; ceiling is what the
+        # container image ships.
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: pytest -q
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # gitleaks scans history, not just the tip
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (both architectures, no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Load amd64 image for a smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: pa2_exporter:ci
+          cache-from: type=gha
+      - name: Exporter serves metrics with no device reachable
+        run: |
+          docker run -d --name pa2ci -p 10048:10048 \
+            -e PA2_HOST=192.0.2.1 pa2_exporter:ci
+          for i in $(seq 1 20); do
+            curl -sf localhost:10048/metrics >/dev/null && break || sleep 1
+          done
+          curl -sf localhost:10048/metrics | tee /tmp/metrics | head -20
+          # A dark PA2 must still yield a scrapeable exporter reporting pa2_up 0.
+          grep -q '^pa2_up 0.0$' /tmp/metrics
+          grep -q '^pa2_input_clip_total{channel="left"} 0.0$' /tmp/metrics
+          test "$(docker inspect -f '{{.Config.User}}' pa2_exporter:ci)" = "pa2"
+          # SIGTERM handling: docker stop must not need the 10s grace period.
+          start=$(date +%s)
+          docker stop pa2ci >/dev/null
+          test $(( $(date +%s) - start )) -lt 5
+          test "$(docker inspect -f '{{.State.ExitCode}}' pa2ci)" = "0"

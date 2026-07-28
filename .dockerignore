@@ -1,0 +1,16 @@
+.git/
+.github/
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.env
+*.log
+.DS_Store
+.idea/
+*.iml
+docker-compose.yml
+Dockerfile

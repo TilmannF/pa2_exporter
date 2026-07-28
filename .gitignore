@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+pa2_password.txt
+*.log
+.DS_Store
+dist/
+build/
+*.egg-info/
+*.iml
+.idea/

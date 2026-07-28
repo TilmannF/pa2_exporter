@@ -1,0 +1,24 @@
+services:
+  pa2_exporter:
+    image: ghcr.io/tilmannf/pa2_exporter:latest
+    # build: .          # uncomment to build locally instead of pulling
+    restart: unless-stopped
+    ports:
+      - "10048:10048"
+    environment:
+      PA2_HOST: "192.0.2.10"        # your PA2's address
+      # Password: prefer the secret below. For a quick start you can instead
+      # set PA2_PASSWORD here, but it will be visible in `docker inspect`.
+      PA2_PASSWORD_FILE: /run/secrets/pa2_password
+      # PA2_WINDOW_SECONDS: "15"    # match your Prometheus scrape interval
+    secrets:
+      - pa2_password
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+secrets:
+  pa2_password:
+    file: ./pa2_password.txt        # keep out of version control

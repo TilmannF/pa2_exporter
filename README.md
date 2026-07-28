@@ -1,0 +1,237 @@
+# pa2_exporter
+
+[![CI](https://github.com/tilmannf/pa2_exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/tilmannf/pa2_exporter/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+Prometheus exporter for the **dbx DriveRack PA2** loudspeaker management
+system. Monitors levels, limiter and compressor activity, mutes, preset state
+and settings changes over the PA2's network control protocol.
+
+Written for a small live venue that wanted its PA in the same monitoring stack
+as everything else: alert when the rack is dark, see how hard the limiters
+worked last night, and keep an audit trail of who changed what.
+
+> **Status: alpha.** Developed and verified against real hardware (firmware
+> 1.2.0.1), but not yet running as a permanent deployment. Metric names and
+> labels may still change before 1.0.
+
+**Read-only by design.** The exporter only ever sends `connect`, `get`, `ls`
+and `sub`. It never sends `set`, so it cannot change your tunings, mutes or
+presets — a monitoring tool has no business touching a live PA.
+
+Not affiliated with dbx, Harman or the DriveRack product line — see
+[TRADEMARKS.md](TRADEMARKS.md).
+
+## Quick start
+
+```bash
+docker run -d --name pa2_exporter -p 10048:10048 \
+    -e PA2_HOST=192.0.2.10 \
+    -e PA2_PASSWORD=secret \
+    ghcr.io/tilmannf/pa2_exporter:latest
+
+curl localhost:10048/metrics
+```
+
+Without Docker:
+
+```bash
+pip install .
+PA2_HOST=192.0.2.10 PA2_PASSWORD=secret pa2-exporter
+```
+
+Prometheus scrape config:
+
+```yaml
+scrape_configs:
+  - job_name: pa2
+    scrape_interval: 15s        # keep PA2_WINDOW_SECONDS in sync with this
+    static_configs:
+      - targets: ["pa2_exporter:10048"]
+```
+
+## Configuration
+
+| Env var | Flag | Default |
+|---|---|---|
+| `PA2_HOST` | `--host` | *(required)* |
+| `PA2_PORT` | `--port` | `19272` |
+| `PA2_PASSWORD` | `--password` | `administrator` |
+| `PA2_PASSWORD_FILE` | — | *(unset)* — read the password from a file; wins over `PA2_PASSWORD` |
+| `PA2_EXPORTER_ADDR` | `--listen-addr` | `0.0.0.0` |
+| `PA2_EXPORTER_PORT` | `--listen-port` | `10048` (see note) |
+| `PA2_WINDOW_SECONDS` | `--window` | `15` |
+
+The password is the one set in the PA2's network security settings, which is
+also what its control app asks for; `administrator` is the factory default.
+
+Port 10048 follows the [Prometheus default port allocation
+registry](https://github.com/prometheus/prometheus/wiki/Default-port-allocations)
+— the next number after the highest current entry. Registration there is
+pending; if it turns out to be taken, this default may change before 1.0.
+Anything conflicting on your network can be moved with `PA2_EXPORTER_PORT`.
+
+## Metrics
+
+| Metric | Type | Notes |
+|---|---|---|
+| `pa2_up` | gauge | session alive + authenticated; device-state series are omitted while `0` |
+| `pa2_input_level_db{channel,stat}` | gauge | `stat`: min/avg/max over the rolling window |
+| `pa2_output_level_db{band,channel,stat}` | gauge | post-mute, per crossover band |
+| `pa2_input_clip_total{channel}` | counter | input clip events |
+| `pa2_output_muted{band,channel}` | gauge | 0/1 |
+| `pa2_output_gain_db{band,channel}` | gauge | output trim |
+| `pa2_limiter_gain_reduction_db{band,stat}` | gauge | how hard the limiters are working |
+| `pa2_compressor_gain_reduction_db{stat}` | gauge | |
+| `pa2_limiter_state{band}` / `pa2_compressor_state` | gauge | 0=under 1=knee 2=over |
+| `pa2_limiter_enabled{band}` / `pa2_compressor_enabled` / `pa2_afs_enabled` | gauge | 0/1 |
+| `pa2_afs_filters_active` | gauge | feedback suppression filters currently set |
+| `pa2_preset_number`, `pa2_preset_info{number,name}` | gauge | currently loaded preset |
+| `pa2_preset_modified` | gauge | unsaved front-panel tweaks |
+| `pa2_settings_changes_total{module}` | counter | audit trail of tweaks |
+| `pa2_preset_changes_total` | counter | preset recalls |
+| `pa2_device_info{firmware,instance_name}` | gauge | device identity |
+| `pa2_reconnects_total`, `pa2_last_push_timestamp_seconds` | | session health |
+
+### Design notes
+
+- **Meters push ~13 Hz, Prometheus scrapes every 15 s.** Sampling one value per
+  scrape would alias badly and miss every transient. Fluid metrics therefore
+  carry a `stat` label with **min/avg/max over a trailing rolling window**
+  (`PA2_WINDOW_SECONDS` — size it to your scrape interval). Averages are
+  computed in the dB domain, which keeps them comparable with a separate
+  SPL-meter exporter using the same convention.
+- **Quiet meters stop pushing.** A gain-reduction meter parked at 0 dB sends
+  nothing, so the window empties; those series fall back to the last pushed
+  value instead of disappearing from your graphs.
+- **A dark device reports nothing rather than something stale.** While the PA2
+  is unreachable the exporter still serves `/metrics` with `pa2_up 0`, but
+  stops emitting device-state series entirely — a frozen meter reading is
+  indistinguishable from a live one on a dashboard and would latch alerting
+  rules. Counters keep their totals;
+  `pa2_last_push_timestamp_seconds` tells you how long it has been dark.
+- **Reconnects on its own** with exponential backoff (5 s → 60 s), and treats a
+  silent socket as dead after 60 s, since a healthy PA2 never stops pushing.
+- Single TCP session, no on-disk state, logs to stdout.
+
+## Docker
+
+See [`docker-compose.yml`](docker-compose.yml) for a deployment using Docker
+secrets.
+
+- ~65 MB Alpine image, runs as non-root uid 10001, works with a read-only root
+  filesystem and all capabilities dropped
+- Prefer `PA2_PASSWORD_FILE` over `PA2_PASSWORD`: the file form keeps the
+  password out of the process environment, where `docker inspect` exposes it
+- `HEALTHCHECK` probes `/metrics` only, and deliberately ignores `pa2_up`: an
+  unreachable PA2 is a working exporter reporting a real fact, and failing
+  health there would restart-loop the container every time the venue powers the
+  rack down
+- Handles `SIGTERM`, so `docker stop` returns immediately
+
+## How it works
+
+The PA2 speaks a line-based ASCII protocol on **TCP port 19272** — the same
+interface its control apps use:
+
+```
+HiQnet Console                                    <- greeting
+connect administrator "secret"                    -> authenticate
+get "\\Node\AT\Software_Version"                  -> read one value
+sub "\\Preset\InputMeters\SV\LeftInput\*"         -> subscribe
+subr "\\Preset\InputMeters\SV\LeftInput\*" "-97.7dB" "-97.717674" ...
+set  "\\Preset\InputMeters\SV\LeftInput\*" "-96.9dB" "-96.854118" ...
+```
+
+A subscription returns its current value as a `subr` line, then the device
+pushes every change as a `set` line — meters at roughly 13 Hz, settings when
+somebody touches them. `ls` browses the parameter tree. Node names contain
+spaces (`High Outputs Limiter`), so paths must be quoted.
+
+`pa2_poc.py` is the standalone protocol explorer this was built from — stdlib
+only, useful for finding paths on your own unit:
+
+```bash
+python3 pa2_poc.py                 # connect, subscribe, print live values
+python3 pa2_poc.py --explore       # dump the parameter tree roots
+python3 pa2_poc.py --ls '\\Preset\OutputGains\SV'   # inspect one node
+```
+
+## Other DriveRack models
+
+Verified only on a **DriveRack PA2, firmware 1.2.0.1**. If you run a different
+firmware, `--explore` will tell you quickly whether the paths still match.
+
+The **VENU360** is the PA2's sibling from the same generation and its manual
+describes the same network security model, so it very likely speaks the same
+console protocol — but nobody has published a confirmation, and its parameter
+paths would differ regardless: it is 3-in/6-out with flexible routing, where
+this exporter hardcodes the PA2's fixed stereo three-way layout in
+`FLUID`/`STATE`. Auth and parsing would port unchanged; the path tables would
+need rewriting. **Reports from VENU360 owners are very welcome.**
+
+Older DriveRacks are out of scope: the 260 and PA+ are RS-232 only, and the
+4800/4820 speak binary HiQnet to System Architect rather than this text
+console.
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest          # 18 tests, no hardware required
+ruff check .
+```
+
+Tests drive the reader with protocol lines recorded from a real PA2 against a
+stub socket, covering parsing, rolling-window statistics, clip edge detection,
+settings accounting and the disconnected-collector path — all offline.
+
+CI runs lint and tests on Python 3.9 and 3.12, scans history with `gitleaks`,
+builds the image for amd64 and arm64, and smoke-tests the container against an
+unreachable device. Tagging `v*` publishes multi-arch images to GHCR.
+
+## Contributing
+
+Issues and pull requests welcome — especially:
+
+- results from other firmware versions or DriveRack models
+- parameter paths this exporter does not expose yet
+- Grafana dashboards and alert rules
+
+Please keep the read-only guarantee intact: no `set` commands, ever. And never
+commit a device password — CI runs `gitleaks`, but the first line of defence is
+`PA2_PASSWORD_FILE`.
+
+## Credits
+
+- **[ForsakenHarmony's protocol notes](https://gist.github.com/ForsakenHarmony/8526cbf73e9bea9cf9811490fb743fc9)**
+  — the starting point for this project. Documented the port, the `connect
+  administrator` handshake and the `get`/`sub` verbs, which is exactly the part
+  that is painful to discover from scratch. Everything beyond that (meter,
+  limiter, AFS and preset paths, and the `subr`-vs-`set` push semantics) was
+  probed against live hardware here.
+- Harman's [HiQnet](https://wiki.wireshark.org/HiQnet) family of protocols, of
+  which this text console is a relative.
+
+### Related projects
+
+Independent efforts against the same device, found after this one was written —
+worth a look if this exporter is not what you need:
+
+- [tcdent/dbxview](https://github.com/tcdent/dbxview) — experimental
+  alternative control interface for the PA2
+- [mkupferman/lpif-dbxdriverack](https://github.com/mkupferman/lpif-dbxdriverack)
+  — pushes Loudspeaker Processor Interchange Format tunings to DriveRack units
+
+## Roadmap
+
+- [x] Protocol PoC against real hardware
+- [x] Exporter with reconnect loop and rolling-window statistics
+- [x] Dockerfile + compose example
+- [x] Tests, lint, secret scanning, multi-arch CI + GHCR release workflow
+- [ ] First published image (repo pushed, `v0.1.0` tagged)
+- [ ] Grafana dashboard example and alert rules
+
+## License
+
+[MIT](LICENSE)
