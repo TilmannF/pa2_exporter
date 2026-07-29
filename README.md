@@ -233,6 +233,23 @@ Tests drive the reader with protocol lines recorded from a real PA2 against a
 stub socket, covering parsing, rolling-window statistics, clip edge detection,
 settings accounting and the disconnected-collector path — all offline.
 
+### Working without a PA2
+
+[`tools/mock_pa2.py`](tools/mock_pa2.py) is a fake device that speaks the
+console protocol well enough to drive the exporter for real:
+
+```bash
+python3 tools/mock_pa2.py &
+PA2_HOST=127.0.0.1 PA2_PORT=19998 pa2-exporter
+```
+
+It simulates a show rather than idling — a music-like envelope with quiet
+passages, limiters biting on peaks, input clips, preset recalls and operator
+tweaks — so every panel and alert has something to display. Any password is
+accepted, and `--tweak-interval` controls how often the simulated operator
+touches something. The Grafana dashboard in this repo was built and verified
+entirely against it.
+
 CI runs lint and tests on Python 3.9 and 3.12, scans history with `gitleaks`,
 builds the image for amd64 and arm64, and smoke-tests the container against an
 unreachable device. Tagging `v*` publishes multi-arch images to GHCR.
