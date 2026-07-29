@@ -144,13 +144,24 @@ import via **Dashboards → New → Import → Upload JSON**, then pick your
 Prometheus data source. To provision it instead, drop the file into your
 dashboards directory and point a file provider at it.
 
+![Front panel row](grafana/front-panel.png)
+
+The top row deliberately mirrors the PA2's own front panel, so anyone who
+works the room can read it without knowing anything about Prometheus: input
+meters on the left, the loaded preset and a STORE lamp for unsaved edits in
+the middle, then LOW/MID/HIGH output meters with a limiter lamp above each
+band and mute lamps beneath each channel. Everything below that row is the
+engineering view.
+
 Variables: **Data source**, **Job**, **Device**, **Band**, **Channel**. Device
 is multi-select and drives every query, so one dashboard covers a whole fleet
-of PA2s. The level panels repeat per channel and per band, so selecting fewer
-bands gives a narrower dashboard rather than an emptier one.
+of PA2s — the front-panel row repeats once per device. The level panels repeat
+per channel and per band, so selecting fewer bands gives a narrower dashboard
+rather than an emptier one.
 
 What it shows:
 
+- **Front panel** — hardware-style meters and lamps, as above
 - **Overview** — online state, availability across the range, loaded preset by
   name, unsaved-edit flag, age of the newest pushed value, reconnects, firmware
 - **Program levels** — input level per channel drawn as a shaded peak/floor

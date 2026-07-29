@@ -206,8 +206,9 @@
     {
       "id": 1,
       "type": "row",
-      "title": "Overview",
+      "title": "Front panel \u00b7 $device",
       "collapsed": false,
+      "repeat": "device",
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -219,6 +220,1137 @@
     {
       "id": 2,
       "type": "stat",
+      "title": "LOW LIMITER",
+      "description": "Limiter activity for this band, read pre-mute exactly like the front-panel lamp.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 4,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pa2_limiter_state{instance=~\"$device\",job=~\"$job\",band=\"low\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "#1F3B24",
+                  "index": 0
+                },
+                "1": {
+                  "text": "KNEE",
+                  "color": "#EAB839",
+                  "index": 1
+                },
+                "2": {
+                  "text": "LIMIT",
+                  "color": "red",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "MID LIMITER",
+      "description": "Limiter activity for this band, read pre-mute exactly like the front-panel lamp.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 4,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pa2_limiter_state{instance=~\"$device\",job=~\"$job\",band=\"mid\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "#1F3B24",
+                  "index": 0
+                },
+                "1": {
+                  "text": "KNEE",
+                  "color": "#EAB839",
+                  "index": 1
+                },
+                "2": {
+                  "text": "LIMIT",
+                  "color": "red",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "HIGH LIMITER",
+      "description": "Limiter activity for this band, read pre-mute exactly like the front-panel lamp.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 1,
+        "w": 4,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pa2_limiter_state{instance=~\"$device\",job=~\"$job\",band=\"high\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "#1F3B24",
+                  "index": 0
+                },
+                "1": {
+                  "text": "KNEE",
+                  "color": "#EAB839",
+                  "index": 1
+                },
+                "2": {
+                  "text": "LIMIT",
+                  "color": "red",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "bargauge",
+      "title": "INPUT",
+      "description": "Peak input level per channel within the rolling window \u2014 the closest equivalent to the hardware's input meters.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 5,
+        "h": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pa2_input_level_db{instance=~\"$device\",job=~\"$job\",channel=\"left\",stat=\"max\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "L"
+        },
+        {
+          "refId": "B",
+          "expr": "pa2_input_level_db{instance=~\"$device\",job=~\"$job\",channel=\"right\",stat=\"max\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "R"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "vertical",
+        "displayMode": "lcd",
+        "valueMode": "color",
+        "showUnfilled": true,
+        "minVizWidth": 8,
+        "minVizHeight": 40,
+        "maxVizHeight": 300,
+        "namePlacement": "bottom",
+        "sizing": "auto",
+        "legend": {
+          "showLegend": false,
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dB",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": -12
+              },
+              {
+                "color": "orange",
+                "value": -6
+              },
+              {
+                "color": "red",
+                "value": -1
+              }
+            ]
+          },
+          "min": -60,
+          "max": 0,
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "PRESET",
+      "description": "Preset currently recalled on the device.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 5,
+        "y": 1,
+        "w": 7,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pa2_preset_info{instance=~\"$device\",job=~\"$job\"}",
+          "editorMode": "code",
+          "range": false,
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "name",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#7EB26D"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "STORE",
+      "description": "Lights when the preset has been edited but not stored \u2014 the state the hardware's STORE lamp warns about.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 5,
+        "y": 11,
+        "w": 7,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pa2_preset_modified{instance=~\"$device\",job=~\"$job\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "SAVED",
+                  "color": "#1F3B24",
+                  "index": 0
+                },
+                "1": {
+                  "text": "UNSAVED EDITS",
+                  "color": "#EAB839",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "bargauge",
+      "title": "OUTPUT",
+      "description": "Post-mute output level per band and channel. Muted outputs sit at the bottom of the scale, as they do on the hardware.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pa2_output_level_db{instance=~\"$device\",job=~\"$job\",band=\"low\",channel=\"left\",stat=\"max\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "LOW L"
+        },
+        {
+          "refId": "B",
+          "expr": "pa2_output_level_db{instance=~\"$device\",job=~\"$job\",band=\"low\",channel=\"right\",stat=\"max\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "LOW R"
+        },
+        {
+          "refId": "C",
+          "expr": "pa2_output_level_db{instance=~\"$device\",job=~\"$job\",band=\"mid\",channel=\"left\",stat=\"max\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "MID L"
+        },
+        {
+          "refId": "D",
+          "expr": "pa2_output_level_db{instance=~\"$device\",job=~\"$job\",band=\"mid\",channel=\"right\",stat=\"max\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "MID R"
+        },
+        {
+          "refId": "E",
+          "expr": "pa2_output_level_db{instance=~\"$device\",job=~\"$job\",band=\"high\",channel=\"left\",stat=\"max\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "HIGH L"
+        },
+        {
+          "refId": "F",
+          "expr": "pa2_output_level_db{instance=~\"$device\",job=~\"$job\",band=\"high\",channel=\"right\",stat=\"max\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "HIGH R"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "vertical",
+        "displayMode": "lcd",
+        "valueMode": "color",
+        "showUnfilled": true,
+        "minVizWidth": 8,
+        "minVizHeight": 40,
+        "maxVizHeight": 300,
+        "namePlacement": "bottom",
+        "sizing": "auto",
+        "legend": {
+          "showLegend": false,
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dB",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": -12
+              },
+              {
+                "color": "orange",
+                "value": -6
+              },
+              {
+                "color": "red",
+                "value": -1
+              }
+            ]
+          },
+          "min": -60,
+          "max": 0,
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "L",
+      "description": "Mute state for this output.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 2,
+        "h": 2
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pa2_output_muted{instance=~\"$device\",job=~\"$job\",band=\"low\",channel=\"left\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "LIVE",
+                  "color": "#1F3B24",
+                  "index": 0
+                },
+                "1": {
+                  "text": "MUTE",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "R",
+      "description": "Mute state for this output.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 13,
+        "w": 2,
+        "h": 2
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pa2_output_muted{instance=~\"$device\",job=~\"$job\",band=\"low\",channel=\"right\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "LIVE",
+                  "color": "#1F3B24",
+                  "index": 0
+                },
+                "1": {
+                  "text": "MUTE",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "L",
+      "description": "Mute state for this output.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 13,
+        "w": 2,
+        "h": 2
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pa2_output_muted{instance=~\"$device\",job=~\"$job\",band=\"mid\",channel=\"left\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "LIVE",
+                  "color": "#1F3B24",
+                  "index": 0
+                },
+                "1": {
+                  "text": "MUTE",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "R",
+      "description": "Mute state for this output.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 13,
+        "w": 2,
+        "h": 2
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pa2_output_muted{instance=~\"$device\",job=~\"$job\",band=\"mid\",channel=\"right\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "LIVE",
+                  "color": "#1F3B24",
+                  "index": 0
+                },
+                "1": {
+                  "text": "MUTE",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "L",
+      "description": "Mute state for this output.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 13,
+        "w": 2,
+        "h": 2
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pa2_output_muted{instance=~\"$device\",job=~\"$job\",band=\"high\",channel=\"left\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "LIVE",
+                  "color": "#1F3B24",
+                  "index": 0
+                },
+                "1": {
+                  "text": "MUTE",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "R",
+      "description": "Mute state for this output.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 22,
+        "y": 13,
+        "w": 2,
+        "h": 2
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pa2_output_muted{instance=~\"$device\",job=~\"$job\",band=\"high\",channel=\"right\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "LIVE",
+                  "color": "#1F3B24",
+                  "index": 0
+                },
+                "1": {
+                  "text": "MUTE",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "Overview",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 16,
+      "type": "stat",
       "title": "Device",
       "description": "Session alive and authenticated. Offline is a real state, not a broken exporter \u2014 it keeps serving and reconnects on its own.",
       "datasource": {
@@ -227,7 +1359,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 1,
+        "y": 16,
         "w": 4,
         "h": 4
       },
@@ -301,7 +1433,7 @@
       }
     },
     {
-      "id": 3,
+      "id": 17,
       "type": "gauge",
       "title": "Availability",
       "description": "Share of the selected time range the exporter was talking to the device.",
@@ -311,7 +1443,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 1,
+        "y": 16,
         "w": 3,
         "h": 4
       },
@@ -372,7 +1504,7 @@
       }
     },
     {
-      "id": 4,
+      "id": 18,
       "type": "stat",
       "title": "Loaded preset",
       "description": "Preset name and number currently recalled on the device.",
@@ -382,7 +1514,7 @@
       },
       "gridPos": {
         "x": 7,
-        "y": 1,
+        "y": 16,
         "w": 5,
         "h": 4
       },
@@ -437,7 +1569,7 @@
       }
     },
     {
-      "id": 5,
+      "id": 19,
       "type": "stat",
       "title": "Preset state",
       "description": "Front-panel edits that have not been stored to the preset.",
@@ -447,7 +1579,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 1,
+        "y": 16,
         "w": 3,
         "h": 4
       },
@@ -520,7 +1652,7 @@
       }
     },
     {
-      "id": 6,
+      "id": 20,
       "type": "stat",
       "title": "Last update",
       "description": "Age of the newest value pushed by the device. A healthy PA2 pushes meters continuously, so a growing number means a stalled session.",
@@ -530,7 +1662,7 @@
       },
       "gridPos": {
         "x": 15,
-        "y": 1,
+        "y": 16,
         "w": 3,
         "h": 4
       },
@@ -593,7 +1725,7 @@
       }
     },
     {
-      "id": 7,
+      "id": 21,
       "type": "stat",
       "title": "Reconnects",
       "description": "Sessions lost in the selected range. Steady growth points at a flaky network path rather than a dead device.",
@@ -603,7 +1735,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 1,
+        "y": 16,
         "w": 3,
         "h": 4
       },
@@ -666,7 +1798,7 @@
       }
     },
     {
-      "id": 8,
+      "id": 22,
       "type": "stat",
       "title": "Firmware",
       "description": "Device instance name and firmware version.",
@@ -676,7 +1808,7 @@
       },
       "gridPos": {
         "x": 21,
-        "y": 1,
+        "y": 16,
         "w": 3,
         "h": 4
       },
@@ -731,20 +1863,20 @@
       }
     },
     {
-      "id": 9,
+      "id": 23,
       "type": "row",
       "title": "Program levels",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 5,
+        "y": 20,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "id": 10,
+      "id": 24,
       "type": "timeseries",
       "title": "Input level \u00b7 $channel",
       "description": "Peak/average/floor within each rolling window, so transients between scrapes are not lost. The shaded band is the full dynamic range seen.",
@@ -754,7 +1886,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 6,
+        "y": 21,
         "w": 12,
         "h": 9
       },
@@ -932,7 +2064,7 @@
       "repeatDirection": "h"
     },
     {
-      "id": 11,
+      "id": 25,
       "type": "timeseries",
       "title": "Output level \u00b7 $band",
       "description": "Post-mute output level per crossover band. Drops to the -120 dB floor when the band is muted.",
@@ -942,7 +2074,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 30,
         "w": 8,
         "h": 8
       },
@@ -1060,20 +2192,20 @@
       "repeatDirection": "h"
     },
     {
-      "id": 12,
+      "id": 26,
       "type": "row",
       "title": "Dynamics",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 23,
+        "y": 38,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "id": 13,
+      "id": 27,
       "type": "timeseries",
       "title": "Limiter gain reduction",
       "description": "How hard each band's limiter is working. Sustained deep reduction means the system is being driven past its headroom.",
@@ -1083,7 +2215,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 39,
         "w": 12,
         "h": 8
       },
@@ -1207,7 +2339,7 @@
       }
     },
     {
-      "id": 14,
+      "id": 28,
       "type": "state-timeline",
       "title": "Limiter threshold state",
       "description": "Pre-mute limiter state per band, so it reports even while the outputs are muted.",
@@ -1217,14 +2349,14 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 24,
+        "y": 39,
         "w": 12,
         "h": 8
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "pa2_limiter_state{instance=~\"$device\",job=~\"$job\"}",
+          "expr": "pa2_limiter_state{instance=~\"$device\",job=~\"$job\",band=\"low\"}",
           "editorMode": "code",
           "range": true,
           "instant": false,
@@ -1232,24 +2364,48 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "legendFormat": "{{band}}"
+          "legendFormat": "LOW"
+        },
+        {
+          "refId": "B",
+          "expr": "pa2_limiter_state{instance=~\"$device\",job=~\"$job\",band=\"mid\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "MID"
+        },
+        {
+          "refId": "C",
+          "expr": "pa2_limiter_state{instance=~\"$device\",job=~\"$job\",band=\"high\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "HIGH"
         }
       ],
       "options": {
         "mergeValues": true,
-        "showValue": "never",
+        "showValue": "auto",
         "alignValue": "center",
         "rowHeight": 0.85,
         "perPage": 20,
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
         "tooltip": {
           "mode": "multi",
           "sort": "desc"
+        },
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
         }
       },
       "fieldConfig": {
@@ -1305,7 +2461,7 @@
       }
     },
     {
-      "id": 15,
+      "id": 29,
       "type": "timeseries",
       "title": "Compressor gain reduction",
       "description": "Bus compressor gain reduction across the rolling window.",
@@ -1315,7 +2471,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 47,
         "w": 12,
         "h": 7
       },
@@ -1407,7 +2563,7 @@
       }
     },
     {
-      "id": 16,
+      "id": 30,
       "type": "timeseries",
       "title": "Input clips",
       "description": "Clip events at the inputs. Anything above zero means somebody upstream is sending too much level.",
@@ -1417,7 +2573,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 32,
+        "y": 47,
         "w": 12,
         "h": 7
       },
@@ -1496,20 +2652,20 @@
       }
     },
     {
-      "id": 17,
+      "id": 31,
       "type": "row",
       "title": "Routing, configuration and audit",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 39,
+        "y": 54,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "id": 18,
+      "id": 32,
       "type": "state-timeline",
       "title": "Output mutes",
       "description": "Mute state per output. Gaps mean the exporter lost the device \u2014 stale state is deliberately not drawn.",
@@ -1519,14 +2675,14 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 55,
         "w": 12,
         "h": 8
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "pa2_output_muted{instance=~\"$device\",job=~\"$job\"}",
+          "expr": "pa2_output_muted{instance=~\"$device\",job=~\"$job\",band=\"low\",channel=\"left\"}",
           "editorMode": "code",
           "range": true,
           "instant": false,
@@ -1534,24 +2690,84 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "legendFormat": "{{band}} {{channel}}"
+          "legendFormat": "LOW L"
+        },
+        {
+          "refId": "B",
+          "expr": "pa2_output_muted{instance=~\"$device\",job=~\"$job\",band=\"low\",channel=\"right\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "LOW R"
+        },
+        {
+          "refId": "C",
+          "expr": "pa2_output_muted{instance=~\"$device\",job=~\"$job\",band=\"mid\",channel=\"left\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "MID L"
+        },
+        {
+          "refId": "D",
+          "expr": "pa2_output_muted{instance=~\"$device\",job=~\"$job\",band=\"mid\",channel=\"right\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "MID R"
+        },
+        {
+          "refId": "E",
+          "expr": "pa2_output_muted{instance=~\"$device\",job=~\"$job\",band=\"high\",channel=\"left\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "HIGH L"
+        },
+        {
+          "refId": "F",
+          "expr": "pa2_output_muted{instance=~\"$device\",job=~\"$job\",band=\"high\",channel=\"right\"}",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "HIGH R"
         }
       ],
       "options": {
         "mergeValues": true,
-        "showValue": "never",
+        "showValue": "auto",
         "alignValue": "center",
         "rowHeight": 0.85,
         "perPage": 20,
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
         "tooltip": {
           "mode": "multi",
           "sort": "desc"
+        },
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
         }
       },
       "fieldConfig": {
@@ -1602,7 +2818,7 @@
       }
     },
     {
-      "id": 19,
+      "id": 33,
       "type": "bargauge",
       "title": "Output trim",
       "description": "Per-output gain trim currently stored in the preset.",
@@ -1612,7 +2828,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 40,
+        "y": 55,
         "w": 6,
         "h": 8
       },
@@ -1678,7 +2894,7 @@
       }
     },
     {
-      "id": 20,
+      "id": 34,
       "type": "stat",
       "title": "Feedback suppression",
       "description": "Active feedback-suppression filters. A climbing count during a show usually means a mic is on the edge of ringing.",
@@ -1688,7 +2904,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 40,
+        "y": 55,
         "w": 6,
         "h": 8
       },
@@ -1767,11 +2983,40 @@
           },
           "decimals": 0
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*enabled"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "OFF",
+                        "color": "text",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "ON",
+                        "color": "green",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       }
     },
     {
-      "id": 21,
+      "id": 35,
       "type": "timeseries",
       "title": "Settings changed on the device",
       "description": "Audit trail of tweaks made at the front panel or from the control app, grouped by module.",
@@ -1781,7 +3026,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 63,
         "w": 12,
         "h": 7
       },
@@ -1865,7 +3110,7 @@
       }
     },
     {
-      "id": 22,
+      "id": 36,
       "type": "bargauge",
       "title": "Changes in range",
       "description": "Total edits per module across the selected range.",
@@ -1875,7 +3120,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 48,
+        "y": 63,
         "w": 6,
         "h": 7
       },
@@ -1940,7 +3185,7 @@
       }
     },
     {
-      "id": 23,
+      "id": 37,
       "type": "stat",
       "title": "Preset recalls",
       "description": "Preset recalls in the selected range. Each one is also marked as an annotation on the time series above.",
@@ -1950,7 +3195,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 48,
+        "y": 63,
         "w": 6,
         "h": 7
       },
