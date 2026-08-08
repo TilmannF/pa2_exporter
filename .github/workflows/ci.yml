@@ -60,12 +60,12 @@ jobs:
           cache-from: type=gha
       - name: Exporter serves metrics with no device reachable
         run: |
-          docker run -d --name pa2ci -p 10048:10048 \
+          docker run -d --name pa2ci -p 10049:10049 \
             -e PA2_HOST=192.0.2.1 pa2_exporter:ci
           for i in $(seq 1 20); do
-            curl -sf localhost:10048/metrics >/dev/null && break || sleep 1
+            curl -sf localhost:10049/metrics >/dev/null && break || sleep 1
           done
-          curl -sf localhost:10048/metrics | tee /tmp/metrics | head -20
+          curl -sf localhost:10049/metrics | tee /tmp/metrics | head -20
           # A dark PA2 must still yield a scrapeable exporter reporting pa2_up 0.
           grep -q '^pa2_up 0.0$' /tmp/metrics
           grep -q '^pa2_input_clip_total{channel="left"} 0.0$' /tmp/metrics

@@ -4,7 +4,7 @@ services:
     # build: .          # uncomment to build locally instead of pulling
     restart: unless-stopped
     ports:
-      - "10048:10048"
+      - "10049:10049"
     environment:
       PA2_HOST: "192.0.2.10"        # your PA2's address
       # Password: prefer the secret below. For a quick start you can instead

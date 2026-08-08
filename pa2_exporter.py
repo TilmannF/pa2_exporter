@@ -17,7 +17,7 @@ Configuration (env var / flag):
   PA2_PORT / --port                PA2 TCP port (default 19272)
   PA2_PASSWORD / --password        administrator password (default "administrator")
   PA2_PASSWORD_FILE                read the password from a file (Docker/K8s secrets)
-  PA2_EXPORTER_PORT / --listen-port  metrics listen port (default 10048)
+  PA2_EXPORTER_PORT / --listen-port  metrics listen port (default 10049)
   PA2_WINDOW_SECONDS / --window    rolling stats window (default 15)
 """
 
@@ -41,7 +41,7 @@ from prometheus_client.core import (
 
 DEFAULT_PORT = 19272
 DEFAULT_PASSWORD = "administrator"
-DEFAULT_EXPORTER_PORT = 10048
+DEFAULT_EXPORTER_PORT = 10049
 DEFAULT_WINDOW = 15.0
 
 BANDS = ("High", "Mid", "Low")

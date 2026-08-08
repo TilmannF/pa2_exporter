@@ -24,7 +24,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
 RUN adduser -D -H -u 10001 pa2
 USER pa2
 
-EXPOSE 10048
+EXPOSE 10049
 
 # Liveness of the exporter only: a powered-off PA2 is not an unhealthy
 # container, it is a fact the exporter reports as pa2_up 0. Do not check that
@@ -32,7 +32,7 @@ EXPOSE 10048
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD ["python", "-c", \
          "import urllib.request,os,sys; \
-port=os.environ.get('PA2_EXPORTER_PORT','10048'); \
+port=os.environ.get('PA2_EXPORTER_PORT','10049'); \
 sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{port}/metrics', timeout=4).status == 200 else 1)"]
 
 ENTRYPOINT ["pa2-exporter"]

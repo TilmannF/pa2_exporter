@@ -24,12 +24,12 @@ Not affiliated with dbx, Harman or the DriveRack product line — see
 ## Quick start
 
 ```bash
-docker run -d --name pa2_exporter -p 10048:10048 \
+docker run -d --name pa2_exporter -p 10049:10049 \
     -e PA2_HOST=192.0.2.10 \
     -e PA2_PASSWORD=secret \
     ghcr.io/tilmannf/pa2_exporter:latest      # or: tilmannf/pa2_exporter:latest
 
-curl localhost:10048/metrics
+curl localhost:10049/metrics
 ```
 
 Without Docker:
@@ -46,7 +46,7 @@ scrape_configs:
   - job_name: pa2
     scrape_interval: 15s        # keep PA2_WINDOW_SECONDS in sync with this
     static_configs:
-      - targets: ["pa2_exporter:10048"]
+      - targets: ["pa2_exporter:10049"]
 ```
 
 ## Configuration
@@ -58,17 +58,18 @@ scrape_configs:
 | `PA2_PASSWORD` | `--password` | `administrator` |
 | `PA2_PASSWORD_FILE` | — | *(unset)* — read the password from a file; wins over `PA2_PASSWORD` |
 | `PA2_EXPORTER_ADDR` | `--listen-addr` | `0.0.0.0` |
-| `PA2_EXPORTER_PORT` | `--listen-port` | `10048` (see note) |
+| `PA2_EXPORTER_PORT` | `--listen-port` | `10049` (see note) |
 | `PA2_WINDOW_SECONDS` | `--window` | `15` |
 
 The password is the one set in the PA2's network security settings, which is
 also what its control app asks for; `administrator` is the factory default.
 
-Port 10048 follows the [Prometheus default port allocation
-registry](https://github.com/prometheus/prometheus/wiki/Default-port-allocations)
-— the next number after the highest current entry. Registration there is
-pending; if it turns out to be taken, this default may change before 1.0.
-Anything conflicting on your network can be moved with `PA2_EXPORTER_PORT`.
+Port 10049 is this exporter's allocation in the [Prometheus default port
+allocation registry](https://github.com/prometheus/prometheus/wiki/Default-port-allocations).
+Releases up to and including 0.2.1 defaulted to 10048, which was free when they
+shipped but has since been allocated to another exporter; if you deployed one of
+those, either pin `PA2_EXPORTER_PORT=10048` or move your scrape target when you
+upgrade.
 
 ## Metrics
 
