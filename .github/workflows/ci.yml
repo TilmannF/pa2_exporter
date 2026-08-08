@@ -15,8 +15,9 @@ jobs:
       fail-fast: false
       matrix:
         # Floor is the version pyproject claims to support; ceiling is what the
-        # container image ships.
-        python-version: ["3.9", "3.12"]
+        # container image ships. Keep the ceiling in step with the Dockerfile —
+        # otherwise a base-image bump ships a Python the tests never ran on.
+        python-version: ["3.9", "3.12", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

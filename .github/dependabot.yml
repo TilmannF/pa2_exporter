@@ -4,11 +4,21 @@ updates:
     directory: /
     schedule:
       interval: monthly
+
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: monthly
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      # One PR for all action bumps rather than one each. Six separate PRs for
+      # six version bumps is noise, and reviewing them together makes it
+      # obvious when a batch touches the release workflow — which CI cannot
+      # exercise, since it only runs on tags.
+      github-actions:
+        patterns:
+          - "*"
