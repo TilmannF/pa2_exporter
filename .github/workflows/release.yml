@@ -1,9 +1,21 @@
 name: Release
 
 # Publishes only on a version tag, so main can move without minting images.
+#
+# workflow_dispatch exists because nothing else exercises this file: CI runs on
+# pushes and pull requests, so metadata-action, login-action and the Docker Hub
+# description sync are first executed when a tag is already public. A dry run
+# performs every step except the two that have outside effects, which makes an
+# action upgrade testable before a release depends on it.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and compute tags without pushing anything"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -17,6 +29,8 @@ jobs:
       # first. Empty means "no Docker Hub configured" and every Docker Hub step
       # is skipped — GHCR alone still publishes, and forks work untouched.
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+      # 'true' only for a manual dry run; a tag push always publishes.
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -51,18 +65,21 @@ jobs:
           images: |
             ${{ env.GHCR_IMAGE }}
             ${{ env.DOCKERHUB_IMAGE }}
-          # v1.2.3 -> 1.2.3, 1.2, latest, plus the commit SHA.
+          # v1.2.3 -> 1.2.3, 1.2, latest, plus the commit SHA. The semver
+          # patterns yield nothing off a tag, so a manual run needs its own
+          # tag or the build would have none at all.
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=dry-run,enable=${{ github.event_name == 'workflow_dispatch' }}
 
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ env.DRY_RUN != 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -70,7 +87,9 @@ jobs:
 
       - name: Sync README to the Docker Hub description
         # Without this the Docker Hub page is blank, which looks abandoned.
-        if: env.DOCKERHUB_USER != ''
+        # Skipped on a dry run: it rewrites the public page immediately, which
+        # is the one step here with no undo.
+        if: env.DOCKERHUB_USER != '' && env.DRY_RUN != 'true'
         uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
