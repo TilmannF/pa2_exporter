@@ -2,7 +2,7 @@
 
 # Alpine is safe here: the only dependency is prometheus-client, which is pure
 # Python, so musl never has to satisfy a compiled extension. Saves ~90 MB.
-FROM python:3.12-alpine AS build
+FROM python:3.14-alpine AS build
 WORKDIR /src
 COPY pyproject.toml README.md pa2_exporter.py pa2_poc.py ./
 # Self-contained venv, copied wholesale into the runtime stage so pip, wheels
@@ -10,7 +10,7 @@ COPY pyproject.toml README.md pa2_exporter.py pa2_poc.py ./
 RUN python -m venv /opt/venv \
  && /opt/venv/bin/pip install --no-cache-dir .
 
-FROM python:3.12-alpine
+FROM python:3.14-alpine
 # image.source is injected by the release workflow (docker/metadata-action),
 # so it stays correct for whatever repo this is published from.
 LABEL org.opencontainers.image.title="pa2_exporter" \
