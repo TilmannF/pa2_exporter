@@ -121,9 +121,15 @@ class Handler(socketserver.BaseRequestHandler):
                                             str(STATE["afs_filters"])),
             r"\\Preset\Compressor\SV\Compressor": ("On", "1"),
             r"\\Preset\Compressor\SV\ThresholdMeter": ("Under", "0"),
+            r"\\Preset\Compressor\SV\GainReductionMeter": ("0.0dB", "0.000000"),
         }
         for band in BANDS:
             values[rf"\\Preset\{band} Outputs Limiter\SV\Limiter"] = ("On", "1")
+            # Latched, never pushed — see push(). The values differ per band so
+            # anything reading them cannot accidentally pass by assuming zero.
+            gr = {"High": -0.308162, "Mid": 0.0, "Low": 0.0}[band]
+            values[rf"\\Preset\{band} Outputs Limiter\SV\GainReductionMeter"] = (
+                f"{gr:.1f}dB", f"{gr:.6f}")
             for ch in CHANNELS:
                 gain = STATE["gains"][(band, ch)]
                 values[rf"\\Preset\OutputGains\SV\{band}{ch}OutputGain"] = (
@@ -150,9 +156,11 @@ class Handler(socketserver.BaseRequestHandler):
             trim = {"High": 1.0, "Mid": 0.0, "Low": 2.0}[band]
             peak = max(program_level(t, 0), program_level(t, 1.7)) + trim
             reduction = min(0.0, -(peak + 6.0)) if peak > -6.0 else 0.0
-            out.append(line(
-                "set", rf"\\Preset\{band} Outputs Limiter\SV\GainReductionMeter",
-                f"{reduction:.1f}dB", f"{reduction:.6f}"))
+            # GainReductionMeter is deliberately NOT pushed. On real hardware it
+            # is latched: it answers `sub` once and then never updates, not on
+            # push and not on `get` either (112 polls over 45 s of live music
+            # returned a byte-identical value). Animating it here taught us a
+            # model the device does not honour.
             state = 2.0 if reduction < -3 else (1.0 if reduction < -0.2 else 0.0)
             out.append(line(
                 "set", rf"\\Preset\{band} Outputs Limiter\SV\ThresholdMeter",
@@ -168,8 +176,10 @@ class Handler(socketserver.BaseRequestHandler):
                                 f"{level:.1f}dB", f"{level:.6f}"))
 
         comp = min(0.0, -(program_level(t, 0) + 10.0))
-        out.append(line("set", r"\\Preset\Compressor\SV\GainReductionMeter",
-                        f"{comp:.1f}dB", f"{comp:.6f}"))
+        state = 2.0 if comp < -3 else (1.0 if comp < -0.2 else 0.0)
+        out.append(line("set", r"\\Preset\Compressor\SV\ThresholdMeter",
+                        ("Over" if state == 2 else "Knee" if state else "Under"),
+                        f"{state:.6f}"))
 
         if time.time() - self.last_tweak > self.server.tweak_interval:
             self.last_tweak = time.time()

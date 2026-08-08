@@ -64,13 +64,16 @@ for _b in BANDS:
             "output_muted", (_b.lower(), _ch.lower()), "OutputGains")
     FLUID[rf"\\Preset\{_b} Outputs Limiter\SV\GainReductionMeter"] = (
         "limiter_gr", (_b.lower(),))
-    STATE[rf"\\Preset\{_b} Outputs Limiter\SV\ThresholdMeter"] = (
-        "limiter_state", (_b.lower(),), None)
+    # Windowed, not a plain gauge: the device pushes this ~3.5 times a second
+    # and a 15 s scrape would keep one arbitrary sample out of fifty, so a
+    # limiter flickering between under and knee reported a coin flip.
+    FLUID[rf"\\Preset\{_b} Outputs Limiter\SV\ThresholdMeter"] = (
+        "limiter_state", (_b.lower(),))
     STATE[rf"\\Preset\{_b} Outputs Limiter\SV\Limiter"] = (
         "limiter_enabled", (_b.lower(),), "Limiter")
 
 FLUID[r"\\Preset\Compressor\SV\GainReductionMeter"] = ("compressor_gr", ())
-STATE[r"\\Preset\Compressor\SV\ThresholdMeter"] = ("compressor_state", (), None)
+FLUID[r"\\Preset\Compressor\SV\ThresholdMeter"] = ("compressor_state", ())
 STATE[r"\\Preset\Compressor\SV\Compressor"] = ("compressor_enabled", (), "Compressor")
 STATE[r"\\Preset\Afs\SV\AFS"] = ("afs_enabled", (), "Afs")
 STATE[r"\\Preset\Afs\SV\NumFilters"] = ("afs_filters", (), None)
@@ -111,6 +114,23 @@ class State:
         self.preset_name = None
         self.instance_name = None
         self.firmware = None
+
+    def forget_device_state(self):
+        """Drop everything the previous session told us. Caller holds the lock.
+
+        The device answers every `sub` with a `subr` carrying the current
+        value, so a fresh session repopulates this within milliseconds. What
+        does not come back is what the device no longer serves — the limiter
+        block of a crossover band the current preset does not use, say, which
+        would otherwise sit in the metrics forever reading whatever it said
+        under some preset recalled hours ago.
+
+        Counters are deliberately untouched: they are cumulative and describe
+        the exporter's own history, not the device's current state.
+        """
+        self.windows.clear()
+        self.fluid_last.clear()
+        self.gauges.clear()
 
 
 class PA2Reader(threading.Thread):
@@ -159,6 +179,7 @@ class PA2Reader(threading.Thread):
             for path in SUB_PATHS:
                 self.send_line(f'sub "{path}\\*"')
             with self.state.lock:
+                self.state.forget_device_state()
                 self.state.connected = True
             log(f"connected to {self.host}:{self.port}")
             while True:
@@ -255,6 +276,12 @@ FLUID_FAMILIES = {
                    "Output limiter gain reduction (dB)", ["band"]),
     "compressor_gr": ("pa2_compressor_gain_reduction_db",
                       "Compressor gain reduction (dB)", []),
+    "limiter_state": ("pa2_limiter_state",
+                      "Limiter threshold state (0=under 1=knee 2=over)",
+                      ["band"]),
+    "compressor_state": ("pa2_compressor_state",
+                         "Compressor threshold state (0=under 1=knee 2=over)",
+                         []),
 }
 
 STATE_FAMILIES = {
@@ -262,11 +289,7 @@ STATE_FAMILIES = {
                     ["band", "channel"]),
     "output_muted": ("pa2_output_muted", "Output mute (1=muted)",
                      ["band", "channel"]),
-    "limiter_state": ("pa2_limiter_state",
-                      "Limiter threshold state (0=under 1=knee 2=over)", ["band"]),
     "limiter_enabled": ("pa2_limiter_enabled", "Limiter enabled (1=on)", ["band"]),
-    "compressor_state": ("pa2_compressor_state",
-                         "Compressor threshold state (0=under 1=knee 2=over)", []),
     "compressor_enabled": ("pa2_compressor_enabled", "Compressor enabled (1=on)", []),
     "afs_enabled": ("pa2_afs_enabled", "AFS feedback suppression enabled (1=on)", []),
     "afs_filters": ("pa2_afs_filters_active", "AFS filters currently set", []),

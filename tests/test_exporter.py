@@ -192,6 +192,83 @@ def test_stale_preset_name_reply_is_ignored(reader):
     assert reader.state.preset_name is None
 
 
+# --- limiter threshold state ------------------------------------------------
+
+THRESHOLD = r"\\Preset\{} Outputs Limiter\SV\ThresholdMeter"
+WORDS = {0: "Under", 1: "Knee", 2: "Over"}
+
+
+def push_threshold(reader, val, band="High"):
+    reader.handle_line(
+        rf'set "{THRESHOLD.format(band)}\*" "{WORDS[val]}" "{val}" '
+        rf'"{val * 50}%" "{val}"')
+
+
+def test_limiter_state_is_windowed(reader):
+    """The device pushes this ~3.5 Hz; a scrape must summarise, not sample."""
+    for val in (0, 1, 1, 2, 0):
+        push_threshold(reader, val)
+    st = reader.state
+    assert value(st, "pa2_limiter_state", band="high", stat="min") == 0.0
+    assert value(st, "pa2_limiter_state", band="high", stat="max") == 2.0
+    assert value(st, "pa2_limiter_state", band="high", stat="avg") == 0.8
+
+
+def test_limiter_state_max_survives_a_transient(reader):
+    """A limiter that touched knee between scrapes must not report 'under'.
+
+    This is the bug that made the front-panel lamp a coin flip: the last
+    pushed value happened to be 0, but the band was at knee for most of the
+    window.
+    """
+    for val in (1, 1, 1, 1, 0):
+        push_threshold(reader, val)
+    st = reader.state
+    assert value(st, "pa2_limiter_state", band="high", stat="max") == 1.0
+    assert value(st, "pa2_limiter_state", band="high", stat="avg") == 0.8
+
+
+# --- session-scoped state ---------------------------------------------------
+
+def test_reconnect_forgets_paths_the_device_stops_serving(reader):
+    """A band the current preset does not use must not linger in the metrics.
+
+    The device answers every `sub` with a `subr`, so whatever a new session
+    still serves comes straight back. What it no longer serves — here, the
+    mid limiter — must disappear rather than report a value from an earlier
+    preset.
+    """
+    push_threshold(reader, 1, band="Mid")
+    reader.handle_line(
+        r'subr "\\Preset\Mid Outputs Limiter\SV\Limiter\*" "On" "1" "100%" "1"')
+    push_threshold(reader, 1, band="High")
+    assert value(reader.state, "pa2_limiter_enabled", band="mid") == 1
+
+    with reader.state.lock:
+        reader.state.forget_device_state()
+    push_threshold(reader, 2, band="High")      # only high comes back
+
+    snapshot = collect(reader.state)
+    bands = {dict(lbls).get("band") for (name, lbls) in snapshot
+             if name == "pa2_limiter_state"}
+    assert bands == {"high"}
+    assert ("pa2_limiter_enabled", frozenset({("band", "mid")})) not in snapshot
+
+
+def test_reconnect_keeps_cumulative_counters(reader):
+    """Counters describe the exporter's history, not the device's state."""
+    push_clip(reader, 0)
+    push_clip(reader, 1)
+    reader.handle_line(rf'set "{MUTE}\*" "On" "1" "100%" "1"')
+
+    with reader.state.lock:
+        reader.state.forget_device_state()
+
+    assert value(reader.state, "pa2_input_clip_total", channel="left") == 1
+    assert value(reader.state, "pa2_settings_changes_total",
+                 module="OutputGains") == 1
+
+
 # --- connection state -------------------------------------------------------
 
 def test_disconnected_drops_device_state_but_keeps_counters(reader):

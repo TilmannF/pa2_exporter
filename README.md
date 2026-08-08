@@ -80,9 +80,9 @@ Anything conflicting on your network can be moved with `PA2_EXPORTER_PORT`.
 | `pa2_input_clip_total{channel}` | counter | input clip events |
 | `pa2_output_muted{band,channel}` | gauge | 0/1 |
 | `pa2_output_gain_db{band,channel}` | gauge | output trim |
-| `pa2_limiter_gain_reduction_db{band,stat}` | gauge | how hard the limiters are working |
-| `pa2_compressor_gain_reduction_db{stat}` | gauge | |
-| `pa2_limiter_state{band}` / `pa2_compressor_state` | gauge | 0=under 1=knee 2=over |
+| `pa2_limiter_gain_reduction_db{band,stat}` | gauge | **latched — see below** |
+| `pa2_compressor_gain_reduction_db{stat}` | gauge | **latched — see below** |
+| `pa2_limiter_state{band,stat}` / `pa2_compressor_state{stat}` | gauge | 0=under 1=knee 2=over |
 | `pa2_limiter_enabled{band}` / `pa2_compressor_enabled` / `pa2_afs_enabled` | gauge | 0/1 |
 | `pa2_afs_filters_active` | gauge | feedback suppression filters currently set |
 | `pa2_preset_number`, `pa2_preset_info{number,name}` | gauge | currently loaded preset |
@@ -100,9 +100,23 @@ Anything conflicting on your network can be moved with `PA2_EXPORTER_PORT`.
   (`PA2_WINDOW_SECONDS` — size it to your scrape interval). Averages are
   computed in the dB domain, which keeps them comparable with a separate
   SPL-meter exporter using the same convention.
-- **Quiet meters stop pushing.** A gain-reduction meter parked at 0 dB sends
-  nothing, so the window empties; those series fall back to the last pushed
-  value instead of disappearing from your graphs.
+- **Quiet meters stop pushing.** A muted output stops metering entirely, so the
+  window empties; those series fall back to the last pushed value instead of
+  disappearing from your graphs.
+- **Gain reduction is latched, not live.** `GainReductionMeter` answers the
+  initial `sub` and then never updates again — not by push, and not by polling
+  either (112 `get`s over 45 s of live music returned a byte-identical value
+  while the limiter oscillated between under and knee). The exporter reports
+  what the device says, so these two series only ever change on reconnect.
+  Treat them as unreliable; **use `pa2_limiter_state` instead** to see how hard
+  the limiters are working. Both metrics are kept rather than dropped, in case
+  other firmware revisions behave differently — if yours does, please open an
+  issue.
+- **State that the device stops serving goes away.** Subscriptions are
+  re-established on every reconnect and the device answers each one with the
+  current value, so a session repopulates in milliseconds. What does not come
+  back is dropped: load a 2-way preset and the mid-band limiter series vanish
+  rather than reporting whatever they said under the last 3-way preset.
 - **A dark device reports nothing rather than something stale.** While the PA2
   is unreachable the exporter still serves `/metrics` with `pa2_up 0`, but
   stops emitting device-state series entirely — a frozen meter reading is
@@ -141,8 +155,28 @@ secrets.
 
 [`grafana/pa2_exporter-dashboard.json`](grafana/pa2_exporter-dashboard.json) —
 import via **Dashboards → New → Import → Upload JSON**, then pick your
-Prometheus data source. To provision it instead, drop the file into your
-dashboards directory and point a file provider at it.
+Prometheus data source.
+
+The file uses Grafana's **schema v2** (`elements` + `layout`), which needs
+**Grafana 13 or newer**. Two consequences worth knowing before you deploy it:
+
+- **File provisioning does not work.** A v2 dashboard dropped into a
+  provisioning directory is rejected with `dashboard appears to be in v2
+  format. Please use the /apis/dashboard.grafana.app/v2 API`. To automate the
+  import, POST it as a resource instead:
+
+  ```bash
+  jq '{apiVersion: "dashboard.grafana.app/v2", kind: "Dashboard",
+       metadata: {name: "pa2-exporter"}, spec: .}' \
+     grafana/pa2_exporter-dashboard.json \
+   | curl -u admin:admin -X POST -H 'Content-Type: application/json' --data-binary @- \
+       http://grafana:3000/apis/dashboard.grafana.app/v2/namespaces/default/dashboards
+  ```
+
+  Repeat imports need the current `metadata.resourceVersion` and a `PUT` to
+  `.../dashboards/pa2-exporter`.
+- **grafana.com sharing expects the classic format**, so this file cannot be
+  published there as-is.
 
 ![Front panel row](grafana/front-panel.png)
 
@@ -153,21 +187,24 @@ the middle, then LOW/MID/HIGH output meters with a limiter lamp above each
 band and mute lamps beneath each channel. Everything below that row is the
 engineering view.
 
-Variables: **Data source**, **Job**, **Device**, **Band**, **Channel**. Device
-is multi-select and drives every query, so one dashboard covers a whole fleet
-of PA2s — the front-panel row repeats once per device. The level panels repeat
-per channel and per band, so selecting fewer bands gives a narrower dashboard
-rather than an emptier one.
+Variables: **Data source**, **Job**, **Device**. Device is single-select on
+purpose — one PA2 at a time. Showing several at once would put identically
+named series on the same axes (`low deepest` twice, with nothing to tell them
+apart), so the dashboard trades fleet-wide overlays for legends that always
+mean one thing. Switching rooms is a dropdown away.
 
 What it shows:
 
 - **Front panel** — hardware-style meters and lamps, as above
-- **Overview** — online state, availability across the range, loaded preset by
-  name, unsaved-edit flag, age of the newest pushed value, reconnects, firmware
-- **Program levels** — input level per channel drawn as a shaded peak/floor
-  band around the average, and post-mute output level per crossover band
-- **Dynamics** — limiter gain reduction per band, limiter threshold state as a
-  state timeline (under/knee/over), compressor reduction, input clips
+- **Overview** — peak input and furthest limiter state across the range, clip
+  count, whether anything is muted, availability, age of the newest pushed
+  value, reconnects, firmware
+- **Program levels** — both input channels in one panel, each drawn as a
+  shaded peak/floor band around its average, and post-mute output level for
+  each crossover band
+- **Dynamics** — limiter activity per band (mean threshold state, the honest
+  answer to "how hard are they working"), threshold state as a state timeline
+  (under/knee/over), compressor activity, input clips
 - **Routing and audit** — mute state timeline, output trim, active feedback
   suppression filters, and settings changes per module, with preset recalls
   marked as annotations across the time series
@@ -247,8 +284,13 @@ It simulates a show rather than idling — a music-like envelope with quiet
 passages, limiters biting on peaks, input clips, preset recalls and operator
 tweaks — so every panel and alert has something to display. Any password is
 accepted, and `--tweak-interval` controls how often the simulated operator
-touches something. The Grafana dashboard in this repo was built and verified
-entirely against it.
+touches something.
+
+It also reproduces the hardware's *awkward* behaviour, not just the convenient
+parts: `GainReductionMeter` is latched rather than animated, because an earlier
+version of this mock pushed a plausible-looking value and taught us a model the
+real device does not honour. If you extend the mock, copy what the PA2 actually
+does — a mock that is nicer than the hardware is worse than no mock.
 
 CI runs lint and tests on Python 3.9 and 3.12, scans history with `gitleaks`,
 builds the image for amd64 and arm64, and smoke-tests the container against an
