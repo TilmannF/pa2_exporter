@@ -166,10 +166,14 @@ The file uses Grafana's **schema v2** (`elements` + `layout`), which needs
   import, POST it as a resource instead:
 
   ```bash
+  # GRAFANA_TOKEN: a service account token with the Dashboards:write
+  # permission — Administration → Users and access → Service accounts.
   jq '{apiVersion: "dashboard.grafana.app/v2", kind: "Dashboard",
        metadata: {name: "pa2-exporter"}, spec: .}' \
      grafana/pa2_exporter-dashboard.json \
-   | curl -u admin:admin -X POST -H 'Content-Type: application/json' --data-binary @- \
+   | curl -H "Authorization: Bearer $GRAFANA_TOKEN" \
+          -H 'Content-Type: application/json' \
+          -X POST --data-binary @- \
        http://grafana:3000/apis/dashboard.grafana.app/v2/namespaces/default/dashboards
   ```
 
