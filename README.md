@@ -313,6 +313,14 @@ Please keep the read-only guarantee intact: no `set` commands, ever. And never
 commit a device password — CI runs `gitleaks`, but the first line of defence is
 `PA2_PASSWORD_FILE`.
 
+[CONTRIBUTING.md](CONTRIBUTING.md) has the development loop, the hardware-free
+workflow and what a pull request needs. A report from a model or firmware this
+has never seen is welcome even when nothing worked — the issue templates ask for
+the parameter tree dump, which is the part that makes support possible.
+
+Found a vulnerability? [SECURITY.md](SECURITY.md) — please don't open a public
+issue for one.
+
 ## Credits
 
 - **[ForsakenHarmony's protocol notes](https://gist.github.com/ForsakenHarmony/8526cbf73e9bea9cf9811490fb743fc9)**

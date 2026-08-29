@@ -1,0 +1,28 @@
+name: Feature request
+description: A metric, a panel, an alert, or a capability that is missing
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One thing that will not be added, so it saves us both the round trip:
+        **anything that writes to the device.** The exporter never sends `set`,
+        and that guarantee is why it is safe to run against a live PA.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to see, and why
+      description: The monitoring question you cannot answer today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would solve it
+      description: |
+        If you know the parameter path involved, name it — `pa2_poc.py --explore`
+        finds them. That turns a request into something implementable.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you have tried

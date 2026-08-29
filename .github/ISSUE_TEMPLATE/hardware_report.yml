@@ -1,0 +1,66 @@
+name: Hardware report
+description: Results from a different DriveRack model or firmware version — wanted, even when nothing works
+labels: ["hardware-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The exporter is verified against exactly one unit: a DriveRack PA2 on
+        firmware 1.2.0.1. Everything known about other models is inference from
+        manuals.
+
+        **A report that says "it connected and then nothing matched" is still
+        worth filing.** So is one from a PA2 on different firmware. The
+        parameter tree dump is the valuable part — it is what makes support
+        possible without anyone shipping hardware around.
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      placeholder: "DriveRack VENU360"
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version
+      description: From the front panel, or `\\Node\AT\Software_Version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: How far did it get
+      options:
+        - Did not connect at all
+        - Connected, authentication failed
+        - Authenticated, no parameter paths matched
+        - Authenticated, some metrics appeared
+        - Everything appears to work
+    validations:
+      required: true
+  - type: textarea
+    id: explore
+    attributes:
+      label: Parameter tree
+      description: |
+        Output of `python3 pa2_poc.py --explore` against your unit. If that is
+        large, attach it as a file instead of pasting.
+
+        You can also drill into one node: `python3 pa2_poc.py --ls '\\Preset\OutputGains\SV'`
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Metrics output
+      description: |
+        `curl -s localhost:10049/metrics` if the exporter got far enough to
+        serve anything. **Redact any preset names you would rather not publish.**
+      render: text
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Routing configuration, how many bands, anything unusual about the unit.

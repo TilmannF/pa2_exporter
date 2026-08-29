@@ -1,0 +1,66 @@
+name: Bug report
+description: Something the exporter does wrong against hardware it claims to support
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If the exporter simply does not know your device — a different model or
+        firmware — please use the **Hardware report** template instead. That is
+        not a bug, it is data the project wants.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: |
+        Steps, config, and the scrape output if it is relevant. Many problems
+        reproduce against `tools/mock_pa2.py` with no hardware — if yours does,
+        say so, it makes the fix much faster.
+      placeholder: |
+        python3 tools/mock_pa2.py &
+        PA2_HOST=127.0.0.1 PA2_PORT=19998 pa2-exporter
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Exporter version
+      description: Output of `pa2-exporter --version`, or the image tag you ran.
+      placeholder: "0.3.0"
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Device model and firmware
+      description: From the front panel, or `pa2_device_info` in your metrics.
+      placeholder: "DriveRack PA2, firmware 1.2.0.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How are you running it
+      options:
+        - Docker / compose
+        - Kubernetes
+        - pip install, run directly
+        - systemd
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Exporter output, ideally with `--log-level debug`.
+        **Redact your device password and any real addresses before pasting.**
+      render: text
