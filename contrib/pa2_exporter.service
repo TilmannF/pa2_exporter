@@ -1,8 +1,17 @@
 # systemd unit for pa2_exporter, for deployments that are not containerised.
 #
 #   sudo cp contrib/pa2_exporter.service /etc/systemd/system/
+#   echo PA2_HOST=192.0.2.10 | sudo tee /etc/default/pa2_exporter
+#   sudo install -d -m 0700 /etc/pa2_exporter
 #   sudo install -m 0600 /dev/stdin /etc/pa2_exporter/password  # paste, then ^D
 #   sudo systemctl daemon-reload && sudo systemctl enable --now pa2_exporter
+#
+# Neither of the two middle steps is optional on a fresh host. `install DEST`
+# does not create leading directories, so writing the password into a
+# non-existent /etc/pa2_exporter fails; and EnvironmentFile= without a leading
+# "-" is mandatory, so a missing /etc/default/pa2_exporter fails the unit at
+# start. The directory is created explicitly rather than with `install -D`
+# because it holds a secret and wants 0700, not the default 0755.
 #
 # Assumes `pip install pa2_exporter` put the entry point on the system path.
 # Adjust ExecStart if you installed into a virtualenv.
