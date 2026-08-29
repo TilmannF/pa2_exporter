@@ -96,3 +96,38 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ env.DOCKERHUB_USER }}/pa2_exporter
           short-description: ${{ github.event.repository.description }}
+
+  # Tags without releases make a repo look abandoned: GitHub's sidebar reads
+  # "No releases published" no matter how many tags exist. Runs after the image
+  # so a failed build never mints a release pointing at nothing.
+  release:
+    needs: image
+    # Tag pushes only. `github.ref_type == 'tag'` is NOT sufficient: the "Run
+    # workflow" dropdown accepts a tag as its ref, so a workflow_dispatch dry
+    # run launched from a tag would satisfy it and go on to mint a real
+    # release — breaking the promise made at the top of this file that a dry
+    # run performs every step except the ones with outside effects. The only
+    # other trigger here is workflow_dispatch, so `push` means a tag push.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # only this job writes; the workflow default is read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Take the release notes from CHANGELOG.md
+        # The script refuses a section that is missing or that would render a
+        # broken link once lifted out of the changelog. CI runs it over every
+        # released version on each pull request, so a tag should never be the
+        # first time it is exercised.
+        run: |
+          tools/changelog-section.sh "$GITHUB_REF_NAME" | tee release-notes.md
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            --verify-tag

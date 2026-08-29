@@ -7,12 +7,14 @@ Prometheus exporter for the **dbx DriveRack PA2** loudspeaker management
 system. Monitors levels, limiter and compressor activity, mutes, preset state
 and settings changes over the PA2's network control protocol.
 
-Written for a small live venue that wanted its PA in the same monitoring stack
-as everything else: alert when the rack is dark, see how hard the limiters
-worked last night, and keep an audit trail of who changed what.
+Written for [Bunker Rostock](https://www.bunker-rostock.de/), a live venue that
+wanted its PA in the same monitoring stack as everything else: alert when the
+rack is dark, see how hard the limiters worked last night, and keep an audit
+trail of who changed what. It has been running there ever since.
 
-> **Status: alpha.** Verified against real hardware (firmware 1.2.0.1) and
-> running at one venue. Metric names and labels may still change before 1.0.
+> **Status: alpha.** Verified against real hardware (firmware 1.2.0.1) and in
+> regular use at the venue it was written for. Metric names and labels may
+> still change before 1.0.
 
 **Read-only by design.** The exporter only ever sends `connect`, `get`, `ls`
 and `sub`. It never sends `set`, so it cannot change your tunings, mutes or
@@ -39,6 +41,20 @@ pip install .
 PA2_HOST=192.0.2.10 PA2_PASSWORD=secret pa2-exporter
 ```
 
+For a permanent non-container deployment,
+[`contrib/pa2_exporter.service`](contrib/pa2_exporter.service) is a hardened
+systemd unit — `DynamicUser`, an empty capability set, `ProtectSystem=strict`,
+and the device password handed over through systemd's credential store rather
+than the environment, where `/proc/<pid>/environ` would expose it:
+
+```bash
+sudo cp contrib/pa2_exporter.service /etc/systemd/system/
+echo PA2_HOST=192.0.2.10 | sudo tee /etc/default/pa2_exporter
+sudo install -d -m 0700 /etc/pa2_exporter
+sudo install -m 0600 /dev/stdin /etc/pa2_exporter/password   # paste, then ^D
+sudo systemctl daemon-reload && sudo systemctl enable --now pa2_exporter
+```
+
 Prometheus scrape config:
 
 ```yaml
@@ -48,6 +64,10 @@ scrape_configs:
     static_configs:
       - targets: ["pa2_exporter:10049"]
 ```
+
+The exporter serves `/metrics` and a small landing page at `/`. Every other
+path is a 404 — deliberately, so a typo'd scrape path fails loudly instead of
+quietly returning metrics anyway.
 
 ## Configuration
 
@@ -60,6 +80,7 @@ scrape_configs:
 | `PA2_EXPORTER_ADDR` | `--listen-addr` | `0.0.0.0` |
 | `PA2_EXPORTER_PORT` | `--listen-port` | `10049` (see note) |
 | `PA2_WINDOW_SECONDS` | `--window` | `15` |
+| `PA2_LOG_LEVEL` | `--log-level` | `info` — `debug`, `info`, `warning` or `error`; `debug` traces every protocol line, with the password masked |
 
 The password is the one set in the PA2's network security settings, which is
 also what its control app asks for; `administrator` is the factory default.
@@ -92,6 +113,7 @@ upgrade.
 | `pa2_preset_changes_total` | counter | preset recalls |
 | `pa2_device_info{firmware,instance_name}` | gauge | device identity |
 | `pa2_reconnects_total`, `pa2_last_push_timestamp_seconds` | | session health |
+| `pa2_exporter_build_info{version}` | gauge | exporter version; present even while the PA2 is dark |
 
 ### Design notes
 
@@ -218,6 +240,51 @@ Because the exporter stops publishing device state while the PA2 is
 unreachable, outages appear as honest gaps in the graphs rather than flat lines
 holding the last value.
 
+## Alerting
+
+[`examples/alerts.yml`](examples/alerts.yml) — seven rules, from "the exporter
+stopped answering" to "somebody was in the rack at four in the morning".
+[`examples/prometheus.yml`](examples/prometheus.yml) is a minimal config that
+loads them.
+
+| Alert | Fires when |
+|---|---|
+| `PA2ExporterDown` | the exporter is not being scraped for 5 m |
+| `PA2Down` | the exporter is up but has no session with the rack for 5 m |
+| `PA2SessionFlapping` | the session drops and re-establishes repeatedly |
+| `PA2InputClipping` | any input clip in the last 5 m |
+| `PA2LimiterWorkingHard` | a band sits at or past its limiter knee for a sustained stretch |
+| `PA2SettingsChangedOffHours` | settings change outside the hours anyone should be at the rack |
+| `PA2PresetUnsaved` | front-panel edits left unstored for an hour |
+
+Thresholds come from one venue and are meant to be edited — a festival stage
+running the PA into limiting on purpose wants `PA2LimiterWorkingHard` gone
+entirely, and the off-hours window is UTC and specific to one room's schedule.
+
+Two rules deserve their reasoning stated out loud:
+
+- **`PA2SessionFlapping` counts reconnects rather than measuring staleness.**
+  A session that authenticates and then goes quiet does not stay that way: the
+  reader treats 60 s without a line as a dead session and reconnects. So the
+  symptom to alert on is churn, and it is invisible to `pa2_up`, which sits at
+  1 almost throughout because every reconnect succeeds. Comparing `time()`
+  against `pa2_last_push_timestamp_seconds` looks like the obvious rule and is
+  a trap — that condition first becomes true at the same instant the reader
+  gives up and `pa2_up` drops to 0, so it can never hold long enough to fire.
+- **Nothing alerts on `pa2_limiter_gain_reduction_db`.** That meter is latched
+  on the device, so a rule built on it would be comparing thresholds against a
+  value frozen at connect time. `pa2_limiter_state` comes from the meter that
+  actually moves.
+
+Every rule has a test in [`examples/alerts_test.yml`](examples/alerts_test.yml),
+including negative cases — a limiter catching two transients must not page
+anyone. CI runs them:
+
+```bash
+docker run --rm --entrypoint=/bin/promtool -v "$PWD/examples:/w" -w /w \
+    prom/prometheus:v3.14.0 test rules alerts_test.yml
+```
+
 ## How it works
 
 The PA2 speaks a line-based ASCII protocol on **TCP port 19272** — the same
@@ -267,7 +334,7 @@ console.
 
 ```bash
 pip install -e ".[dev]"
-pytest          # 18 tests, no hardware required
+pytest          # the whole suite, no hardware required
 ruff check .
 ```
 
@@ -313,8 +380,25 @@ Please keep the read-only guarantee intact: no `set` commands, ever. And never
 commit a device password — CI runs `gitleaks`, but the first line of defence is
 `PA2_PASSWORD_FILE`.
 
+Commits need a `Signed-off-by` line (`git commit -s`) certifying the
+[Developer Certificate of Origin](DCO); a bot blocks pull requests without one.
+[CONTRIBUTING.md](CONTRIBUTING.md) has the details, along with the development
+loop, the hardware-free workflow and what a pull request needs. A report from a model or firmware this
+has never seen is welcome even when nothing worked — the issue templates ask for
+the parameter tree dump, which is the part that makes support possible.
+
+Found a vulnerability? [SECURITY.md](SECURITY.md) — please don't open a public
+issue for one.
+
 ## Credits
 
+- **[Kulturkombinat Bunker in Rostock e.V.](https://kulturkombinat-bunker.de/)**
+  — the non-profit association behind the cultural programme at
+  [Bunker Rostock](https://www.bunker-rostock.de/), of which the author is a
+  member. Most of what this exporter knows about the PA2 was learned against
+  that venue's rack, some of it mid-show: that the gain reduction meter is
+  latched, that the threshold meter needs windowing, and that a preset's unused
+  blocks go silent rather than reporting zero.
 - **[ForsakenHarmony's protocol notes](https://gist.github.com/ForsakenHarmony/8526cbf73e9bea9cf9811490fb743fc9)**
   — the starting point for this project. Documented the port, the `connect
   administrator` handshake and the `get`/`sub` verbs, which is exactly the part
@@ -336,13 +420,15 @@ worth a look if this exporter is not what you need:
 
 ## Roadmap
 
+Released changes are in [CHANGELOG.md](CHANGELOG.md).
+
 - [x] Protocol PoC against real hardware
 - [x] Exporter with reconnect loop and rolling-window statistics
 - [x] Dockerfile + compose example
 - [x] Tests, lint, secret scanning, multi-arch CI + GHCR release workflow
 - [x] Published multi-arch images on GHCR and Docker Hub
 - [x] Grafana dashboard
-- [ ] Alert rules
+- [x] Alert rules
 
 ## License
 

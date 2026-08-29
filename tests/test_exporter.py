@@ -5,6 +5,8 @@ recorded from a real PA2 (firmware 1.2.0.1), and its socket is a stub that
 only records what the exporter would have sent back.
 """
 
+import logging
+
 import pytest
 
 import pa2_exporter as ex
@@ -310,3 +312,174 @@ def test_password_file_wins_and_strips_newline(monkeypatch, tmp_path):
     monkeypatch.setenv("PA2_PASSWORD", "from-env")
     monkeypatch.setenv("PA2_PASSWORD_FILE", str(secret))
     assert ex.default_password() == "from-file"
+
+
+# --- HTTP surface -----------------------------------------------------------
+
+def request(app, path):
+    """Drive a WSGI app by hand; returns (status, headers dict, body bytes)."""
+    captured = {}
+
+    def start_response(status, headers):
+        captured["status"] = status
+        captured["headers"] = dict(headers)
+
+    body = b"".join(app({"PATH_INFO": path, "REQUEST_METHOD": "GET"},
+                        start_response))
+    return captured["status"], captured["headers"], body
+
+
+@pytest.fixture
+def app():
+    # An empty registry: these tests are about routing, not about content.
+    from prometheus_client import CollectorRegistry
+    return ex.make_app(CollectorRegistry())
+
+
+def test_root_serves_a_landing_page(app):
+    status, headers, body = request(app, "/")
+    assert status.startswith("200")
+    assert headers["Content-Type"].startswith("text/html")
+    assert b"/metrics" in body
+
+
+def test_metrics_path_serves_the_exposition(app):
+    status, headers, _ = request(app, "/metrics")
+    assert status.startswith("200")
+    assert "text/plain" in headers["Content-Type"]
+
+
+def test_unknown_path_is_not_silently_metrics(app):
+    # prometheus_client's own WSGI app answers every path with the exposition,
+    # so a typo'd scrape path would succeed and hide the mistake.
+    status, _, body = request(app, "/metric")
+    assert status.startswith("404")
+    assert b"/metrics" in body
+
+
+# --- version reporting ------------------------------------------------------
+
+def test_build_info_survives_the_device_going_dark(reader):
+    with reader.state.lock:
+        reader.state.connected = False
+    snapshot = collect(reader.state)
+    assert snapshot[("pa2_exporter_build_info",
+                     frozenset({("version", ex.__version__)}))] == 1.0
+
+
+def test_version_comes_from_the_running_module(monkeypatch):
+    """Not from importlib.metadata, which reports whatever is *installed*.
+
+    A checkout ahead of an older install on sys.path — or just a stale
+    *.egg-info in the repo root — used to make --version and build_info
+    advertise a release that is not the code being executed.
+    """
+    import importlib.metadata
+
+    def wrong(_name):
+        return "9.9.9-not-what-is-running"
+
+    monkeypatch.setattr(importlib.metadata, "version", wrong)
+    assert ex.__version__ != "9.9.9-not-what-is-running"
+    assert ex.__version__.strip()
+
+
+def test_packaging_metadata_matches_the_module():
+    """pyproject reads the version back from the module; keep that wired up."""
+    from importlib.metadata import version as installed_version
+    assert installed_version("pa2_exporter") == ex.__version__
+
+
+# --- argument parsing under a broken environment ----------------------------
+
+BROKEN_ENV = [
+    ("PA2_PASSWORD_FILE", "/nonexistent/pa2-password"),
+    ("PA2_PORT", "notanumber"),
+    ("PA2_EXPORTER_PORT", "notanumber"),
+    ("PA2_WINDOW_SECONDS", "abc"),
+    ("PA2_LOG_LEVEL", "bogus"),
+]
+
+
+@pytest.mark.parametrize("var,value", BROKEN_ENV)
+@pytest.mark.parametrize("flag", ["--version", "--help"])
+def test_diagnostic_flags_survive_a_broken_environment(monkeypatch, capsys,
+                                                       var, value, flag):
+    """--version and --help are what you reach for when a deploy is broken.
+
+    Resolving these defaults while building the parser made them raise before
+    argparse could answer, so the diagnostics failed exactly when needed.
+    """
+    monkeypatch.setenv("PA2_HOST", "192.0.2.10")
+    monkeypatch.setenv(var, value)
+    monkeypatch.setattr("sys.argv", ["pa2-exporter", flag])
+
+    with pytest.raises(SystemExit) as exit_info:
+        ex.main()
+
+    assert exit_info.value.code == 0
+    assert capsys.readouterr().out.strip()
+
+
+@pytest.mark.parametrize("var,value", BROKEN_ENV)
+def test_broken_environment_fails_with_one_readable_line(monkeypatch, capsys,
+                                                         var, value):
+    monkeypatch.setenv("PA2_HOST", "192.0.2.10")
+    monkeypatch.setenv(var, value)
+    monkeypatch.setattr("sys.argv", ["pa2-exporter"])
+
+    with pytest.raises(SystemExit) as exit_info:
+        ex.main()
+
+    message = str(exit_info.value.code)
+    assert var in message
+    assert "Traceback" not in message
+
+
+def test_flags_win_over_a_broken_environment(monkeypatch):
+    """An explicit flag must not be poisoned by a bad env var it overrides."""
+    monkeypatch.setenv("PA2_PORT", "notanumber")
+    monkeypatch.setenv("PA2_HOST", "192.0.2.10")
+    monkeypatch.delenv("PA2_PASSWORD_FILE", raising=False)
+    monkeypatch.setattr("sys.argv", ["pa2-exporter", "--port", "19999",
+                                     "--version"])
+
+    with pytest.raises(SystemExit) as exit_info:
+        ex.main()
+
+    assert exit_info.value.code == 0
+
+
+# --- debug logging ----------------------------------------------------------
+
+def test_debug_level_traces_the_protocol(reader, caplog):
+    """--log-level debug is advertised, and the bug template asks for it."""
+    with caplog.at_level(logging.DEBUG, logger="pa2_exporter"):
+        reader.send_line('get "\\\\Node\\AT\\Software_Version"')
+        reader.handle_line(
+            r'subr "\\Preset\InputMeters\SV\LeftInput\*" "-20.0dB" "-20.0" '
+            r'"50%" "-20.0"')
+
+    assert "> get" in caplog.text
+    assert "< subr" in caplog.text
+
+
+def test_info_level_stays_quiet(reader, caplog):
+    with caplog.at_level(logging.INFO, logger="pa2_exporter"):
+        reader.send_line('get "\\\\Node\\AT\\Software_Version"')
+    assert caplog.text == ""
+
+
+def test_debug_never_logs_the_password(reader, caplog):
+    """Debug output gets pasted into public issues."""
+    with caplog.at_level(logging.DEBUG, logger="pa2_exporter"):
+        reader.send_line('connect administrator "hunter2"')
+
+    assert "hunter2" not in caplog.text
+    assert "********" in caplog.text
+    assert "connect administrator" in caplog.text   # still diagnosable
+
+
+def test_redact_leaves_ordinary_lines_alone():
+    line = r'sub "\\Preset\InputMeters\SV\LeftInput\*"'
+    assert ex.redact(line) == line

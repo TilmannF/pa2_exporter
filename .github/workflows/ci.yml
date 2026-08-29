@@ -69,9 +69,46 @@ jobs:
           # A dark PA2 must still yield a scrapeable exporter reporting pa2_up 0.
           grep -q '^pa2_up 0.0$' /tmp/metrics
           grep -q '^pa2_input_clip_total{channel="left"} 0.0$' /tmp/metrics
+          # Which version is running must be answerable with the rack dark.
+          grep -q '^pa2_exporter_build_info{version="[^"]\+"} 1.0$' /tmp/metrics
+          # / is a landing page, and only /metrics serves the exposition.
+          curl -sf localhost:10049/ | grep -q '/metrics'
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:10049/nope)" = 404
           test "$(docker inspect -f '{{.Config.User}}' pa2_exporter:ci)" = "pa2"
           # SIGTERM handling: docker stop must not need the 10s grace period.
           start=$(date +%s)
           docker stop pa2ci >/dev/null
           test $(( $(date +%s) - start )) -lt 5
           test "$(docker inspect -f '{{.State.ExitCode}}' pa2ci)" = "0"
+
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # promtool ships inside the Prometheus image; pinned so a Prometheus
+      # release cannot fail this repo's CI on a day nothing here changed.
+      - name: Check and test the alerting rules
+        run: |
+          promtool() {
+            docker run --rm --entrypoint=/bin/promtool \
+              -v "$PWD/examples:/w" -w /w prom/prometheus:v3.14.0 "$@"
+          }
+          promtool check config prometheus.yml
+          promtool check rules alerts.yml
+          promtool test rules alerts_test.yml
+
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Release notes are extracted from CHANGELOG.md at tag time, and a tag is
+      # a bad moment to discover the section does not survive being lifted out.
+      # Every version the changelog claims must extract cleanly, today.
+      - name: Every changelog section extracts as usable release notes
+        run: |
+          versions=$(sed -n 's/^## \[\([0-9][^]]*\)\].*/\1/p' CHANGELOG.md)
+          test -n "$versions"
+          for v in $versions; do
+            echo "--- $v"
+            tools/changelog-section.sh "$v" >/dev/null
+          done

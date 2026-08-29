@@ -1,0 +1,268 @@
+# Unit tests for examples/alerts.yml.
+#
+#   promtool test rules examples/alerts_test.yml
+#
+# Every rule has a test, and the ones with a threshold also have a negative
+# case — a rule that cannot stay quiet is worse than no rule. Test time starts
+# at the Unix epoch, so hour() is 0 during evaluation, which is what makes the
+# off-hours rule testable at all.
+
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # --- availability --------------------------------------------------------
+
+  - name: the exporter itself stops answering
+    interval: 1m
+    input_series:
+      - series: 'up{job="pa2", instance="pa2:10049"}'
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: PA2ExporterDown
+        exp_alerts: []          # not yet: for 5m
+      - eval_time: 5m
+        alertname: PA2ExporterDown
+        exp_alerts:
+          - exp_labels:
+              job: pa2
+              instance: pa2:10049
+              severity: critical
+            exp_annotations:
+              summary: "pa2_exporter is not being scraped"
+              description: "Prometheus cannot scrape pa2:10049. Nothing is known about the PA until this clears."
+
+  - name: the rack goes dark while the exporter keeps answering
+    interval: 1m
+    input_series:
+      - series: 'pa2_up{job="pa2", instance="pa2:10049"}'
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: PA2Down
+        exp_alerts:
+          - exp_labels:
+              job: pa2
+              instance: pa2:10049
+              severity: critical
+            exp_annotations:
+              summary: "PA2 unreachable from pa2:10049"
+              description: "The exporter has had no authenticated session with the PA2 for five minutes. Check that the rack is powered and on the network."
+
+  - name: a rack that is simply up does not alert
+    interval: 1m
+    input_series:
+      - series: 'pa2_up{job="pa2", instance="pa2:10049"}'
+        values: "1x21"
+      - series: 'pa2_reconnects_total{job="pa2", instance="pa2:10049"}'
+        # Two reconnects inside the alert's window — a flaky evening, not a
+        # broken one. This has to stay *below* the threshold while still being
+        # non-zero, or the test proves nothing about where the threshold sits.
+        values: "0x10 1x4 2x5"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: PA2Down
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: PA2SessionFlapping
+        exp_alerts: []
+
+  - name: the session keeps dropping and coming back
+    interval: 1m
+    input_series:
+      # A zombie session: authenticates, goes quiet, gets killed by the reader's
+      # 60s timeout, reconnects, repeats. pa2_up stays 1 almost throughout,
+      # which is exactly why this needs its own alert.
+      - series: 'pa2_up{job="pa2", instance="pa2:10049"}'
+        values: "1x20"
+      - series: 'pa2_reconnects_total{job="pa2", instance="pa2:10049"}'
+        values: "0+1x20"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: PA2Down
+        exp_alerts: []          # each reconnect succeeds, so pa2_up never drops
+      - eval_time: 20m
+        alertname: PA2SessionFlapping
+        exp_alerts:
+          - exp_labels:
+              job: pa2
+              instance: pa2:10049
+              severity: warning
+            exp_annotations:
+              summary: "PA2 session keeps dropping"
+              description: "The exporter has lost and re-established its PA2 session repeatedly in the last fifteen minutes. Meters push constantly, so a session that keeps timing out points at the network path or the device's control interface rather than at the PA itself."
+
+  # --- audio ---------------------------------------------------------------
+
+  - name: an input clips
+    interval: 1m
+    input_series:
+      - series: 'pa2_input_clip_total{job="pa2", instance="pa2:10049", channel="left"}'
+        values: "0 0 0 1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: PA2InputClipping
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: PA2InputClipping
+        exp_alerts:
+          - exp_labels:
+              job: pa2
+              instance: pa2:10049
+              channel: left
+              severity: warning
+            exp_annotations:
+              summary: "PA2 left input clipping"
+              description: "The left input has clipped in the last five minutes. Something upstream is too hot — check the console output gain before the PA2's input trim."
+
+  - name: a limiter pinned from the very first sample does not page instantly
+    interval: 1m
+    input_series:
+      # The series has only just appeared — exporter start, or a reconnect,
+      # which drops the rolling windows and begins again. avg_over_time[15m]
+      # over one sample at "over" is 2, well past the threshold, so without a
+      # `for` this fires on the first scrape and calls it sustained.
+      - series: 'pa2_limiter_state{job="pa2", instance="pa2:10049", band="low", stat="avg"}'
+        values: "2x30"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: PA2LimiterWorkingHard
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: PA2LimiterWorkingHard
+        exp_alerts: []
+
+  - name: a limiter sits at its knee for a sustained stretch
+    interval: 1m
+    input_series:
+      - series: 'pa2_limiter_state{job="pa2", instance="pa2:10049", band="low", stat="avg"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: PA2LimiterWorkingHard
+        exp_alerts: []          # not yet: for 5m
+      - eval_time: 20m
+        alertname: PA2LimiterWorkingHard
+        exp_alerts:
+          - exp_labels:
+              job: pa2
+              instance: pa2:10049
+              band: low
+              stat: avg
+              severity: warning
+            exp_annotations:
+              summary: "PA2 low limiter working hard"
+              description: "The low limiter has been at or past its knee for a sustained stretch. Either the system is being pushed beyond what it has, or the limiter threshold is set lower than intended."
+
+  - name: a limiter catching transients does not alert
+    interval: 1m
+    input_series:
+      # Over on two isolated hits, under the rest of the time — the limiter
+      # doing exactly its job. This is the case the alert must stay quiet for.
+      - series: 'pa2_limiter_state{job="pa2", instance="pa2:10049", band="high", stat="avg"}'
+        values: "0 0 0 2 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: PA2LimiterWorkingHard
+        exp_alerts: []
+
+  # --- configuration -------------------------------------------------------
+
+  # Test time starts at the Unix epoch, so eval_time doubles as a clock:
+  # 0m is 00:00 UTC, 480m is 08:00, 1380m is 23:00.
+  - name: somebody changes settings in the middle of the night
+    interval: 30s
+    input_series:
+      - series: 'pa2_settings_changes_total{job="pa2", instance="pa2:10049", module="limiter"}'
+        # Range selectors are left-open, (t-1m, t], so with a 30s interval
+        # the window holds two samples; the step has to fall between them.
+        values: "0x9 1x60"          # first "1" lands exactly at 00:05
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: PA2SettingsChangedOffHours
+        exp_alerts:
+          - exp_labels:
+              job: pa2
+              instance: pa2:10049
+              module: limiter
+              severity: warning
+            exp_annotations:
+              summary: "PA2 limiter settings changed outside show hours"
+              description: "Somebody changed limiter on the PA2 outside the hours anyone is expected to be at the rack."
+
+  - name: a daytime settings change is nobody's business
+    interval: 30s
+    input_series:
+      # Change at 12:00, squarely inside show hours.
+      - series: 'pa2_settings_changes_total{job="pa2", instance="pa2:10049", module="limiter"}'
+        values: "0x1440 1x40"
+    alert_rule_test:
+      - eval_time: 721m
+        alertname: PA2SettingsChangedOffHours
+        exp_alerts: []
+
+  - name: a change just before 23:00 does not page at 23:00
+    interval: 30s
+    input_series:
+      # 22:50 — legitimate, and ten minutes clear of the boundary. With the old
+      # 15m lookback this fired the moment hour() reached 23.
+      - series: 'pa2_settings_changes_total{job="pa2", instance="pa2:10049", module="limiter"}'
+        values: "0x2740 1x60"
+    alert_rule_test:
+      - eval_time: 1381m
+        alertname: PA2SettingsChangedOffHours
+        exp_alerts: []
+
+  - name: a change at 07:59 keeps firing past 08:00
+    interval: 30s
+    input_series:
+      # keep_firing_for: without it the alert vanishes the instant hour() hits
+      # 8, quite possibly before anyone was notified.
+      - series: 'pa2_settings_changes_total{job="pa2", instance="pa2:10049", module="limiter"}'
+        values: "0x957 1x60"        # first "1" lands exactly at 07:59
+    alert_rule_test:
+      - eval_time: 479m       # fires while still off-hours
+        alertname: PA2SettingsChangedOffHours
+        exp_alerts:
+          - exp_labels:
+              job: pa2
+              instance: pa2:10049
+              module: limiter
+              severity: warning
+            exp_annotations:
+              summary: "PA2 limiter settings changed outside show hours"
+              description: "Somebody changed limiter on the PA2 outside the hours anyone is expected to be at the rack."
+      - eval_time: 485m       # 08:05, still firing thanks to keep_firing_for
+        alertname: PA2SettingsChangedOffHours
+        exp_alerts:
+          - exp_labels:
+              job: pa2
+              instance: pa2:10049
+              module: limiter
+              severity: warning
+            exp_annotations:
+              summary: "PA2 limiter settings changed outside show hours"
+              description: "Somebody changed limiter on the PA2 outside the hours anyone is expected to be at the rack."
+
+  - name: a preset is left modified and unsaved
+    interval: 1m
+    input_series:
+      - series: 'pa2_preset_modified{job="pa2", instance="pa2:10049"}'
+        values: "1x70"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: PA2PresetUnsaved
+        exp_alerts: []          # not yet: for 1h
+      - eval_time: 61m
+        alertname: PA2PresetUnsaved
+        exp_alerts:
+          - exp_labels:
+              job: pa2
+              instance: pa2:10049
+              severity: info
+            exp_annotations:
+              summary: "PA2 preset has unsaved changes"
+              description: "The loaded preset has been modified from the front panel and not stored for an hour. The edits are lost on the next recall or reboot."

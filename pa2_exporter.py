@@ -19,9 +19,11 @@ Configuration (env var / flag):
   PA2_PASSWORD_FILE                read the password from a file (Docker/K8s secrets)
   PA2_EXPORTER_PORT / --listen-port  metrics listen port (default 10049)
   PA2_WINDOW_SECONDS / --window    rolling stats window (default 15)
+  PA2_LOG_LEVEL / --log-level      debug, info, warning or error (default info)
 """
 
 import argparse
+import logging
 import os
 import re
 import signal
@@ -38,6 +40,16 @@ from prometheus_client.core import (
     CounterMetricFamily,
     GaugeMetricFamily,
 )
+
+# The single source of truth for the version, deliberately here rather than in
+# pyproject.toml, which reads it back from this attribute. importlib.metadata
+# answers "what is installed", not "what is running": with a checkout on
+# sys.path ahead of an older install — or merely a stale *.egg-info left in the
+# repo root, which wins because '' leads sys.path — it cheerfully reports a
+# version that is not this file. The bug report template asks contributors for
+# `pa2-exporter --version`, and the people running from a checkout are exactly
+# the ones filing hardware reports, so it has to be the truth.
+__version__ = "0.4.0"
 
 DEFAULT_PORT = 19272
 DEFAULT_PASSWORD = "administrator"
@@ -88,9 +100,28 @@ INFO_GETS = [r"\\Node\AT\Instance_Name", r"\\Node\AT\Software_Version"]
 
 QUOTED = re.compile(r'"([^"]*)"')
 
+# `connect administrator "<password>"` is the one line we send that carries a
+# secret, and debug logs are pasted into bug reports.
+CONNECT_PASSWORD = re.compile(r'^(connect\s+\S+\s+")[^"]*(")')
 
-def log(msg):
-    print(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {msg}", flush=True)
+
+def redact(line):
+    """Mask the password in a connect line; every other line is safe as-is."""
+    return CONNECT_PASSWORD.sub(r"\1********\2", line)
+
+
+log = logging.getLogger("pa2_exporter")
+
+
+def configure_logging(level):
+    """Timestamp first, as before, now with a level in front of the message."""
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(
+        fmt="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S"))
+    root = logging.getLogger()
+    root.handlers[:] = [handler]
+    root.setLevel(level.upper())
 
 
 class State:
@@ -154,7 +185,7 @@ class PA2Reader(threading.Thread):
                 # session failure: socket errors, protocol surprises, a device
                 # rebooting mid-push. Dying here would leave a live exporter
                 # permanently reporting pa2_up 0.
-                log(f"session error: {exc!r}, reconnecting in {backoff}s")
+                log.warning("session error: %r, reconnecting in %ss", exc, backoff)
             with self.state.lock:
                 if self.state.connected:
                     self.state.reconnects += 1
@@ -181,7 +212,7 @@ class PA2Reader(threading.Thread):
             with self.state.lock:
                 self.state.forget_device_state()
                 self.state.connected = True
-            log(f"connected to {self.host}:{self.port}")
+            log.info("connected to %s:%s", self.host, self.port)
             while True:
                 # Meters push constantly; a long silence means a dead session.
                 line = self.read_line(60.0)
@@ -192,6 +223,7 @@ class PA2Reader(threading.Thread):
             sock.close()
 
     def send_line(self, line):
+        log.debug("> %s", redact(line))
         self.sock.sendall(line.encode("ascii") + b"\r\n")
 
     def read_line(self, timeout):
@@ -208,6 +240,11 @@ class PA2Reader(threading.Thread):
         return raw.decode("ascii", errors="replace").rstrip("\r")
 
     def handle_line(self, line):
+        # Every line the device sends passes through here, so this is the one
+        # place that makes `--log-level debug` a real protocol trace — which is
+        # what a hardware report from an unfamiliar model needs. Verbose by
+        # design: the meters push at ~13 Hz.
+        log.debug("< %s", line)
         cmd, _, rest = line.partition(" ")
         fields = QUOTED.findall(rest)
         if cmd == "get" and len(fields) >= 2:
@@ -323,6 +360,16 @@ class PA2Collector:
             instance_name = st.instance_name
             firmware = st.firmware
 
+        # Ungated on purpose: unlike everything below, this describes the
+        # exporter, not the device, so it must still be there when the rack is
+        # dark — that is exactly when somebody is asking which version is
+        # running.
+        fam = GaugeMetricFamily(
+            "pa2_exporter_build_info", "Exporter build information",
+            labels=["version"])
+        fam.add_metric([__version__], 1.0)
+        yield fam
+
         yield GaugeMetricFamily(
             "pa2_up", "PA2 session established and authenticated",
             value=1.0 if connected else 0.0)
@@ -420,8 +467,51 @@ class SilentHandler(WSGIRequestHandler):
         return self.client_address[0]  # skip reverse DNS per request too
 
 
+LANDING_PAGE = b"""<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>pa2_exporter</title></head>
+<body>
+<h1>pa2_exporter</h1>
+<p>Prometheus exporter for the dbx DriveRack PA2 loudspeaker management
+system. Read-only: this exporter never writes to the device.</p>
+<p><a href="/metrics">Metrics</a></p>
+</body>
+</html>
+"""
+
+
+def make_app(registry=REGISTRY):
+    """Route by path: a landing page at /, metrics at /metrics, 404 elsewhere.
+
+    prometheus_client's WSGI app answers *every* path with the full exposition,
+    for backwards compatibility. That makes / a wall of text in a browser and
+    lets a typo'd scrape path succeed silently, hiding the mistake until
+    somebody wonders why two jobs disagree. Route explicitly instead.
+    """
+    metrics_app = make_wsgi_app(registry)
+
+    def app(environ, start_response):
+        path = environ.get("PATH_INFO", "/")
+        if path in ("/metrics", "/metrics/"):
+            return metrics_app(environ, start_response)
+        if path in ("", "/"):
+            start_response("200 OK", [
+                ("Content-Type", "text/html; charset=utf-8"),
+                ("Content-Length", str(len(LANDING_PAGE))),
+            ])
+            return [LANDING_PAGE]
+        body = b"404 Not Found: try /metrics\n"
+        start_response("404 Not Found", [
+            ("Content-Type", "text/plain; charset=utf-8"),
+            ("Content-Length", str(len(body))),
+        ])
+        return [body]
+
+    return app
+
+
 def serve_metrics(addr, port):
-    httpd = make_server(addr, port, make_wsgi_app(), MetricsServer, SilentHandler)
+    httpd = make_server(addr, port, make_app(), MetricsServer, SilentHandler)
     threading.Thread(target=httpd.serve_forever, name="metrics-http",
                      daemon=True).start()
 
@@ -435,45 +525,98 @@ def default_password():
     """
     path = os.environ.get("PA2_PASSWORD_FILE")
     if path:
-        with open(path, encoding="utf-8") as fh:
-            return fh.read().strip("\r\n")
+        try:
+            with open(path, encoding="utf-8") as fh:
+                return fh.read().strip("\r\n")
+        except OSError as exc:
+            # A secret that failed to mount is the single most likely container
+            # misconfiguration here. Say which file, not which line of Python.
+            raise SystemExit(
+                f"PA2_PASSWORD_FILE: cannot read {path}: {exc.strerror}"
+            ) from None
     return os.environ.get("PA2_PASSWORD", DEFAULT_PASSWORD)
 
 
+def env_number(name, default, cast, kind):
+    """Read a numeric environment variable, or fail with one readable line.
+
+    A traceback is the wrong answer for a typo in a compose file, and this runs
+    before any logging is configured.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return cast(raw)
+    except ValueError:
+        raise SystemExit(f"{name}: expected {kind}, got {raw!r}") from None
+
+
 def main():
+    # Every default below is resolved *after* parse_args, never while building
+    # the parser. Reading a password file or parsing PA2_PORT at construction
+    # time makes --version and --help raise before argparse can answer them —
+    # and those are exactly what somebody reaches for when a deployment is
+    # broken, which is when the environment is most likely to be malformed.
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--host", default=os.environ.get("PA2_HOST"),
+    ap.add_argument("--host",
                     help="PA2 address (env: PA2_HOST)")
     ap.add_argument("--port", type=int,
-                    default=int(os.environ.get("PA2_PORT", DEFAULT_PORT)),
                     help=f"PA2 TCP port (env: PA2_PORT, default {DEFAULT_PORT})")
-    ap.add_argument("--password", default=default_password(),
+    ap.add_argument("--password",
                     help="administrator password "
                          "(env: PA2_PASSWORD or PA2_PASSWORD_FILE)")
     ap.add_argument("--listen-addr",
-                    default=os.environ.get("PA2_EXPORTER_ADDR", "0.0.0.0"),
                     help="metrics bind address (env: PA2_EXPORTER_ADDR, "
                          "default 0.0.0.0)")
     ap.add_argument("--listen-port", type=int,
-                    default=int(os.environ.get("PA2_EXPORTER_PORT",
-                                               DEFAULT_EXPORTER_PORT)),
                     help="metrics HTTP port (env: PA2_EXPORTER_PORT, "
                          f"default {DEFAULT_EXPORTER_PORT})")
     ap.add_argument("--window", type=float,
-                    default=float(os.environ.get("PA2_WINDOW_SECONDS",
-                                                 DEFAULT_WINDOW)),
                     help="rolling stats window in seconds "
                          f"(env: PA2_WINDOW_SECONDS, default {DEFAULT_WINDOW:g})")
+    ap.add_argument("--log-level",
+                    choices=("debug", "info", "warning", "error"),
+                    help="log verbosity (env: PA2_LOG_LEVEL, default info)")
+    ap.add_argument("--version", action="version",
+                    version=f"pa2_exporter {__version__}")
     args = ap.parse_args()
+
+    if args.host is None:
+        args.host = os.environ.get("PA2_HOST")
+    if args.port is None:
+        args.port = env_number("PA2_PORT", DEFAULT_PORT, int, "an integer")
+    if args.password is None:
+        args.password = default_password()
+    if args.listen_addr is None:
+        args.listen_addr = os.environ.get("PA2_EXPORTER_ADDR", "0.0.0.0")
+    if args.listen_port is None:
+        args.listen_port = env_number("PA2_EXPORTER_PORT",
+                                      DEFAULT_EXPORTER_PORT, int, "an integer")
+    if args.window is None:
+        args.window = env_number("PA2_WINDOW_SECONDS", DEFAULT_WINDOW,
+                                 float, "a number")
+    if args.log_level is None:
+        args.log_level = os.environ.get("PA2_LOG_LEVEL", "info").lower()
+        # argparse checks `choices` for values it parsed, not for a default we
+        # supplied ourselves, so an unknown PA2_LOG_LEVEL would otherwise reach
+        # the logging module and raise there.
+        if args.log_level not in ("debug", "info", "warning", "error"):
+            raise SystemExit("PA2_LOG_LEVEL: expected debug, info, warning or "
+                             f"error, got {args.log_level!r}")
+
     if not args.host:
         ap.error("PA2 address required: set --host or PA2_HOST")
+
+    configure_logging(args.log_level)
 
     state = State(args.window)
     REGISTRY.register(PA2Collector(state))
     PA2Reader(state, args.host, args.port, args.password).start()
     serve_metrics(args.listen_addr, args.listen_port)
-    log(f"exporter listening on {args.listen_addr}:{args.listen_port}, "
-        f"PA2 at {args.host}:{args.port}, window {args.window:g}s")
+    log.info("pa2_exporter %s listening on %s:%s, PA2 at %s:%s, window %gs",
+             __version__, args.listen_addr, args.listen_port,
+             args.host, args.port, args.window)
 
     # `docker stop` sends SIGTERM; without a handler the default disposition
     # kills us mid-scrape and exits 143. Wake up and leave cleanly instead.
@@ -481,7 +624,7 @@ def main():
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stop.set())
     stop.wait()
-    log("shutting down")
+    log.info("shutting down")
 
 
 if __name__ == "__main__":

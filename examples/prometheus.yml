@@ -1,0 +1,19 @@
+# Minimal Prometheus configuration for pa2_exporter.
+#
+# CI runs `promtool check config` over this file, so the scrape snippet in the
+# README cannot drift into something that does not actually load.
+
+global:
+  # Keep this in sync with the exporter's PA2_WINDOW_SECONDS. The exporter
+  # reports min/avg/max over a trailing window of that length; if the window is
+  # shorter than the scrape interval, peaks between scrapes are lost, and if it
+  # is longer, they are counted twice.
+  scrape_interval: 15s
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  - job_name: pa2
+    static_configs:
+      - targets: ["pa2_exporter:10049"]
