@@ -48,20 +48,27 @@ groups:
             The exporter has had no authenticated session with the PA2 for five
             minutes. Check that the rack is powered and on the network.
 
-      - alert: PA2Stale
-        # Session up, device silent. Meters push at ~13 Hz, so a minute without
-        # a single pushed value means the session is a zombie: the socket is
-        # open, nothing is coming down it, and pa2_up alone would not notice.
-        expr: pa2_up == 1 and (time() - pa2_last_push_timestamp_seconds) > 60
-        for: 2m
+      - alert: PA2SessionFlapping
+        # A session that authenticates and then goes quiet does not stay that
+        # way: the reader treats 60 s without a line as a dead session and
+        # reconnects. So the observable symptom of a zombie session is reconnect
+        # churn, not a stale timestamp — and it is invisible to pa2_up, which
+        # spends almost all of its time at 1 because each reconnect succeeds.
+        #
+        # Do not rewrite this as a staleness comparison against
+        # pa2_last_push_timestamp_seconds: that condition becomes true at the
+        # same instant the reader gives up and pa2_up drops to 0, so it can
+        # never hold long enough for Prometheus to see it.
+        expr: increase(pa2_reconnects_total[15m]) > 3
         labels:
           severity: warning
         annotations:
-          summary: "PA2 session is connected but silent"
+          summary: "PA2 session keeps dropping"
           description: >-
-            No value pushed by the device for over a minute while the session is
-            still up. The exporter should reconnect on its own; if this persists,
-            the device's control interface may need a power cycle.
+            The exporter has lost and re-established its PA2 session repeatedly
+            in the last fifteen minutes. Meters push constantly, so a session
+            that keeps timing out points at the network path or the device's
+            control interface rather than at the PA itself.
 
   - name: pa2_audio
     rules:

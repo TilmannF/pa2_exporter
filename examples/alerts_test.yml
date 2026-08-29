@@ -56,40 +56,44 @@ tests:
     interval: 1m
     input_series:
       - series: 'pa2_up{job="pa2", instance="pa2:10049"}'
-        values: "1x10"
-      - series: 'pa2_last_push_timestamp_seconds{job="pa2", instance="pa2:10049"}'
-        # Pushing continuously: the timestamp tracks evaluation time.
-        values: "0+60x10"
+        values: "1x21"
+      - series: 'pa2_reconnects_total{job="pa2", instance="pa2:10049"}'
+        # Two reconnects inside the alert's window — a flaky evening, not a
+        # broken one. This has to stay *below* the threshold while still being
+        # non-zero, or the test proves nothing about where the threshold sits.
+        values: "0x10 1x4 2x5"
     alert_rule_test:
       - eval_time: 8m
         alertname: PA2Down
         exp_alerts: []
-      - eval_time: 8m
-        alertname: PA2Stale
+      - eval_time: 20m
+        alertname: PA2SessionFlapping
         exp_alerts: []
 
-  - name: the session is open but the device has gone silent
+  - name: the session keeps dropping and coming back
     interval: 1m
     input_series:
+      # A zombie session: authenticates, goes quiet, gets killed by the reader's
+      # 60s timeout, reconnects, repeats. pa2_up stays 1 almost throughout,
+      # which is exactly why this needs its own alert.
       - series: 'pa2_up{job="pa2", instance="pa2:10049"}'
-        values: "1x10"
-      - series: 'pa2_last_push_timestamp_seconds{job="pa2", instance="pa2:10049"}'
-        # Last push at t=100s and nothing since.
-        values: "100x10"
+        values: "1x20"
+      - series: 'pa2_reconnects_total{job="pa2", instance="pa2:10049"}'
+        values: "0+1x20"
     alert_rule_test:
-      - eval_time: 2m
-        alertname: PA2Stale
-        exp_alerts: []          # 120 - 100 = 20s, still fresh
-      - eval_time: 5m
-        alertname: PA2Stale
+      - eval_time: 20m
+        alertname: PA2Down
+        exp_alerts: []          # each reconnect succeeds, so pa2_up never drops
+      - eval_time: 20m
+        alertname: PA2SessionFlapping
         exp_alerts:
           - exp_labels:
               job: pa2
               instance: pa2:10049
               severity: warning
             exp_annotations:
-              summary: "PA2 session is connected but silent"
-              description: "No value pushed by the device for over a minute while the session is still up. The exporter should reconnect on its own; if this persists, the device's control interface may need a power cycle."
+              summary: "PA2 session keeps dropping"
+              description: "The exporter has lost and re-established its PA2 session repeatedly in the last fifteen minutes. Meters push constantly, so a session that keeps timing out points at the network path or the device's control interface rather than at the PA itself."
 
   # --- audio ---------------------------------------------------------------
 

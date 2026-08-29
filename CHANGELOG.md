@@ -13,8 +13,8 @@ you need to update.
 ### Added
 
 - Example alerting rules in `examples/alerts.yml`, covering exporter and device
-  availability, a connected-but-silent session, input clipping, sustained
-  limiter activity, off-hours settings changes and unsaved front-panel edits.
+  availability, session flapping, input clipping, sustained limiter activity,
+  off-hours settings changes and unsaved front-panel edits.
   Every rule has a `promtool` test in `examples/alerts_test.yml`, negative cases
   included, and CI runs them.
 - `examples/prometheus.yml`, a minimal scrape configuration that loads the

@@ -102,7 +102,13 @@ jobs:
   # so a failed build never mints a release pointing at nothing.
   release:
     needs: image
-    if: github.ref_type == 'tag'
+    # Tag pushes only. `github.ref_type == 'tag'` is NOT sufficient: the "Run
+    # workflow" dropdown accepts a tag as its ref, so a workflow_dispatch dry
+    # run launched from a tag would satisfy it and go on to mint a real
+    # release — breaking the promise made at the top of this file that a dry
+    # run performs every step except the ones with outside effects. The only
+    # other trigger here is workflow_dispatch, so `push` means a tag push.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write        # only this job writes; the workflow default is read

@@ -251,7 +251,7 @@ loads them.
 |---|---|
 | `PA2ExporterDown` | the exporter is not being scraped for 5 m |
 | `PA2Down` | the exporter is up but has no session with the rack for 5 m |
-| `PA2Stale` | the session is open but the device has pushed nothing for a minute |
+| `PA2SessionFlapping` | the session drops and re-establishes repeatedly |
 | `PA2InputClipping` | any input clip in the last 5 m |
 | `PA2LimiterWorkingHard` | a band sits at or past its limiter knee for a sustained stretch |
 | `PA2SettingsChangedOffHours` | settings change outside the hours anyone should be at the rack |
@@ -263,9 +263,14 @@ entirely, and the off-hours window is UTC and specific to one room's schedule.
 
 Two rules deserve their reasoning stated out loud:
 
-- **`PA2Stale` exists because `pa2_up` is not enough.** A session can stay open
-  while the device stops saying anything, and a socket that is connected but
-  silent looks identical to a quiet room on every other metric.
+- **`PA2SessionFlapping` counts reconnects rather than measuring staleness.**
+  A session that authenticates and then goes quiet does not stay that way: the
+  reader treats 60 s without a line as a dead session and reconnects. So the
+  symptom to alert on is churn, and it is invisible to `pa2_up`, which sits at
+  1 almost throughout because every reconnect succeeds. Comparing `time()`
+  against `pa2_last_push_timestamp_seconds` looks like the obvious rule and is
+  a trap — that condition first becomes true at the same instant the reader
+  gives up and `pa2_up` drops to 0, so it can never hold long enough to fire.
 - **Nothing alerts on `pa2_limiter_gain_reduction_db`.** That meter is latched
   on the device, so a rule built on it would be comparing thresholds against a
   value frozen at connect time. `pa2_limiter_state` comes from the meter that
