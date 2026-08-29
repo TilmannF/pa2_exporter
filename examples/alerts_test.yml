@@ -118,12 +118,32 @@ tests:
               summary: "PA2 left input clipping"
               description: "The left input has clipped in the last five minutes. Something upstream is too hot — check the console output gain before the PA2's input trim."
 
+  - name: a limiter pinned from the very first sample does not page instantly
+    interval: 1m
+    input_series:
+      # The series has only just appeared — exporter start, or a reconnect,
+      # which drops the rolling windows and begins again. avg_over_time[15m]
+      # over one sample at "over" is 2, well past the threshold, so without a
+      # `for` this fires on the first scrape and calls it sustained.
+      - series: 'pa2_limiter_state{job="pa2", instance="pa2:10049", band="low", stat="avg"}'
+        values: "2x30"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: PA2LimiterWorkingHard
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: PA2LimiterWorkingHard
+        exp_alerts: []
+
   - name: a limiter sits at its knee for a sustained stretch
     interval: 1m
     input_series:
       - series: 'pa2_limiter_state{job="pa2", instance="pa2:10049", band="low", stat="avg"}'
         values: "1x30"
     alert_rule_test:
+      - eval_time: 4m
+        alertname: PA2LimiterWorkingHard
+        exp_alerts: []          # not yet: for 5m
       - eval_time: 20m
         alertname: PA2LimiterWorkingHard
         exp_alerts:

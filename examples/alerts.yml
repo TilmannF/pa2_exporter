@@ -91,7 +91,14 @@ groups:
         # asks "has this band spent a sustained stretch at or past the knee",
         # which is the question a limiter alert should answer. A brief 2 during
         # a snare hit is the limiter doing its job and must not page anyone.
+        #
+        # The `for` is load-bearing, not decoration. avg_over_time averages the
+        # samples that exist, not a full 15 minutes of them, so on a series that
+        # has just appeared — exporter start, or any reconnect, since the
+        # session drops its windows and starts clean — a single sample at the
+        # knee *is* the average and would page instantly.
         expr: avg_over_time(pa2_limiter_state{stat="avg"}[15m]) > 0.5
+        for: 5m
         labels:
           severity: warning
         annotations:
