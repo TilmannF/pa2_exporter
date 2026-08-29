@@ -10,6 +10,21 @@ you need to update.
 
 ## [Unreleased]
 
+### Added
+
+- Example alerting rules in `examples/alerts.yml`, covering exporter and device
+  availability, a connected-but-silent session, input clipping, sustained
+  limiter activity, off-hours settings changes and unsaved front-panel edits.
+  Every rule has a `promtool` test in `examples/alerts_test.yml`, negative cases
+  included, and CI runs them.
+- `examples/prometheus.yml`, a minimal scrape configuration that loads the
+  rules, checked by `promtool check config` in CI so the README snippet cannot
+  drift into something that does not load.
+- `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, issue templates and a pull
+  request template.
+- Tagging a release now creates the GitHub release from that version's
+  changelog section.
+
 ## [0.3.0] — 2026-08-08
 
 ### Changed

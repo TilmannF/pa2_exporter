@@ -218,6 +218,46 @@ Because the exporter stops publishing device state while the PA2 is
 unreachable, outages appear as honest gaps in the graphs rather than flat lines
 holding the last value.
 
+## Alerting
+
+[`examples/alerts.yml`](examples/alerts.yml) — seven rules, from "the exporter
+stopped answering" to "somebody was in the rack at four in the morning".
+[`examples/prometheus.yml`](examples/prometheus.yml) is a minimal config that
+loads them.
+
+| Alert | Fires when |
+|---|---|
+| `PA2ExporterDown` | the exporter is not being scraped for 5 m |
+| `PA2Down` | the exporter is up but has no session with the rack for 5 m |
+| `PA2Stale` | the session is open but the device has pushed nothing for a minute |
+| `PA2InputClipping` | any input clip in the last 5 m |
+| `PA2LimiterWorkingHard` | a band sits at or past its limiter knee for a sustained stretch |
+| `PA2SettingsChangedOffHours` | settings change outside the hours anyone should be at the rack |
+| `PA2PresetUnsaved` | front-panel edits left unstored for an hour |
+
+Thresholds come from one venue and are meant to be edited — a festival stage
+running the PA into limiting on purpose wants `PA2LimiterWorkingHard` gone
+entirely, and the off-hours window is UTC and specific to one room's schedule.
+
+Two rules deserve their reasoning stated out loud:
+
+- **`PA2Stale` exists because `pa2_up` is not enough.** A session can stay open
+  while the device stops saying anything, and a socket that is connected but
+  silent looks identical to a quiet room on every other metric.
+- **Nothing alerts on `pa2_limiter_gain_reduction_db`.** That meter is latched
+  on the device, so a rule built on it would be comparing thresholds against a
+  value frozen at connect time. `pa2_limiter_state` comes from the meter that
+  actually moves.
+
+Every rule has a test in [`examples/alerts_test.yml`](examples/alerts_test.yml),
+including negative cases — a limiter catching two transients must not page
+anyone. CI runs them:
+
+```bash
+docker run --rm --entrypoint=/bin/promtool -v "$PWD/examples:/w" -w /w \
+    prom/prometheus:v3.14.0 test rules alerts_test.yml
+```
+
 ## How it works
 
 The PA2 speaks a line-based ASCII protocol on **TCP port 19272** — the same
@@ -350,7 +390,7 @@ worth a look if this exporter is not what you need:
 - [x] Tests, lint, secret scanning, multi-arch CI + GHCR release workflow
 - [x] Published multi-arch images on GHCR and Docker Hub
 - [x] Grafana dashboard
-- [ ] Alert rules
+- [x] Alert rules
 
 ## License
 

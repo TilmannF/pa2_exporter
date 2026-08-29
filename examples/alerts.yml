@@ -1,0 +1,125 @@
+# Alerting rules for pa2_exporter.
+#
+#   promtool check rules examples/alerts.yml
+#   promtool test rules examples/alerts_test.yml
+#
+# Load them from your Prometheus config:
+#
+#   rule_files:
+#     - /etc/prometheus/rules/pa2.yml
+#
+# Thresholds are a starting point from one venue, not universal truth. A room
+# whose limiters never move wants tighter ones; a festival stage running the PA
+# into limiting on purpose wants PA2LimiterWorkingHard turned off entirely.
+#
+# Note what these rules deliberately do NOT use: pa2_limiter_gain_reduction_db.
+# The device's GainReductionMeter is latched — it answers the initial
+# subscription and then never updates — so any rule built on it would be
+# alerting on a value frozen at connect time. pa2_limiter_state comes from
+# ThresholdMeter, which is genuinely live.
+
+groups:
+  - name: pa2_availability
+    rules:
+      - alert: PA2ExporterDown
+        # The exporter itself is unreachable, so every rule below is blind.
+        # Assumes the job name from the README scrape config.
+        expr: up{job="pa2"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "pa2_exporter is not being scraped"
+          description: >-
+            Prometheus cannot scrape {{ $labels.instance }}. Nothing is known
+            about the PA until this clears.
+
+      - alert: PA2Down
+        # The exporter is healthy and telling us the rack is not answering.
+        # Five minutes because a PA2 reboot or a switch reconverging is normal
+        # and self-clears; a dark rack at showtime is not.
+        expr: pa2_up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PA2 unreachable from {{ $labels.instance }}"
+          description: >-
+            The exporter has had no authenticated session with the PA2 for five
+            minutes. Check that the rack is powered and on the network.
+
+      - alert: PA2Stale
+        # Session up, device silent. Meters push at ~13 Hz, so a minute without
+        # a single pushed value means the session is a zombie: the socket is
+        # open, nothing is coming down it, and pa2_up alone would not notice.
+        expr: pa2_up == 1 and (time() - pa2_last_push_timestamp_seconds) > 60
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PA2 session is connected but silent"
+          description: >-
+            No value pushed by the device for over a minute while the session is
+            still up. The exporter should reconnect on its own; if this persists,
+            the device's control interface may need a power cycle.
+
+  - name: pa2_audio
+    rules:
+      - alert: PA2InputClipping
+        # Any clip at all is worth knowing about. Clipping is not a threshold
+        # you tune, it is a thing that should not happen.
+        expr: increase(pa2_input_clip_total[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "PA2 {{ $labels.channel }} input clipping"
+          description: >-
+            The {{ $labels.channel }} input has clipped in the last five
+            minutes. Something upstream is too hot — check the console output
+            gain before the PA2's input trim.
+
+      - alert: PA2LimiterWorkingHard
+        # pa2_limiter_state is 0=under, 1=knee, 2=over, already averaged over
+        # the exporter's rolling window. Averaging that again over 15 minutes
+        # asks "has this band spent a sustained stretch at or past the knee",
+        # which is the question a limiter alert should answer. A brief 2 during
+        # a snare hit is the limiter doing its job and must not page anyone.
+        expr: avg_over_time(pa2_limiter_state{stat="avg"}[15m]) > 0.5
+        labels:
+          severity: warning
+        annotations:
+          summary: "PA2 {{ $labels.band }} limiter working hard"
+          description: >-
+            The {{ $labels.band }} limiter has been at or past its knee for a
+            sustained stretch. Either the system is being pushed beyond what it
+            has, or the limiter threshold is set lower than intended.
+
+  - name: pa2_configuration
+    rules:
+      - alert: PA2SettingsChangedOffHours
+        # An audit trail is only useful if something reads it. Hours are UTC and
+        # venue-specific: this fires for changes between 23:00 and 08:00, which
+        # is "nobody should be in the rack right now" for one particular room.
+        # Adjust the window, or drop this rule if your PA gets touched at all
+        # hours legitimately.
+        expr: increase(pa2_settings_changes_total[15m]) > 0 and on() (hour() >= 23 or hour() < 8)
+        labels:
+          severity: warning
+        annotations:
+          summary: "PA2 {{ $labels.module }} settings changed outside show hours"
+          description: >-
+            Somebody changed {{ $labels.module }} on the PA2 outside the hours
+            anyone is expected to be at the rack.
+
+      - alert: PA2PresetUnsaved
+        # The front panel has been tweaked and not stored. Harmless until the
+        # next power cycle or preset recall silently discards it.
+        expr: pa2_preset_modified == 1
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "PA2 preset has unsaved changes"
+          description: >-
+            The loaded preset has been modified from the front panel and not
+            stored for an hour. The edits are lost on the next recall or reboot.
