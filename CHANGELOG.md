@@ -12,6 +12,15 @@ you need to update.
 
 ## [0.4.0] — 2026-08-29
 
+### Fixed
+
+- `--version` and `--help` work when the environment is broken. Both used to
+  raise before argparse could answer them, because defaults such as
+  `PA2_PASSWORD_FILE` and `PA2_PORT` were resolved while the parser was being
+  built — so the diagnostics failed in exactly the situation that prompts
+  someone to run them. A malformed environment now fails with one readable
+  line naming the variable, rather than a traceback.
+
 ### Added
 
 - Example alerting rules in `examples/alerts.yml`, covering exporter and device

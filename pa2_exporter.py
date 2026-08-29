@@ -518,42 +518,86 @@ def default_password():
     """
     path = os.environ.get("PA2_PASSWORD_FILE")
     if path:
-        with open(path, encoding="utf-8") as fh:
-            return fh.read().strip("\r\n")
+        try:
+            with open(path, encoding="utf-8") as fh:
+                return fh.read().strip("\r\n")
+        except OSError as exc:
+            # A secret that failed to mount is the single most likely container
+            # misconfiguration here. Say which file, not which line of Python.
+            raise SystemExit(
+                f"PA2_PASSWORD_FILE: cannot read {path}: {exc.strerror}"
+            ) from None
     return os.environ.get("PA2_PASSWORD", DEFAULT_PASSWORD)
 
 
+def env_number(name, default, cast, kind):
+    """Read a numeric environment variable, or fail with one readable line.
+
+    A traceback is the wrong answer for a typo in a compose file, and this runs
+    before any logging is configured.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return cast(raw)
+    except ValueError:
+        raise SystemExit(f"{name}: expected {kind}, got {raw!r}") from None
+
+
 def main():
+    # Every default below is resolved *after* parse_args, never while building
+    # the parser. Reading a password file or parsing PA2_PORT at construction
+    # time makes --version and --help raise before argparse can answer them —
+    # and those are exactly what somebody reaches for when a deployment is
+    # broken, which is when the environment is most likely to be malformed.
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--host", default=os.environ.get("PA2_HOST"),
+    ap.add_argument("--host",
                     help="PA2 address (env: PA2_HOST)")
     ap.add_argument("--port", type=int,
-                    default=int(os.environ.get("PA2_PORT", DEFAULT_PORT)),
                     help=f"PA2 TCP port (env: PA2_PORT, default {DEFAULT_PORT})")
-    ap.add_argument("--password", default=default_password(),
+    ap.add_argument("--password",
                     help="administrator password "
                          "(env: PA2_PASSWORD or PA2_PASSWORD_FILE)")
     ap.add_argument("--listen-addr",
-                    default=os.environ.get("PA2_EXPORTER_ADDR", "0.0.0.0"),
                     help="metrics bind address (env: PA2_EXPORTER_ADDR, "
                          "default 0.0.0.0)")
     ap.add_argument("--listen-port", type=int,
-                    default=int(os.environ.get("PA2_EXPORTER_PORT",
-                                               DEFAULT_EXPORTER_PORT)),
                     help="metrics HTTP port (env: PA2_EXPORTER_PORT, "
                          f"default {DEFAULT_EXPORTER_PORT})")
     ap.add_argument("--window", type=float,
-                    default=float(os.environ.get("PA2_WINDOW_SECONDS",
-                                                 DEFAULT_WINDOW)),
                     help="rolling stats window in seconds "
                          f"(env: PA2_WINDOW_SECONDS, default {DEFAULT_WINDOW:g})")
     ap.add_argument("--log-level",
                     choices=("debug", "info", "warning", "error"),
-                    default=os.environ.get("PA2_LOG_LEVEL", "info").lower(),
                     help="log verbosity (env: PA2_LOG_LEVEL, default info)")
     ap.add_argument("--version", action="version",
                     version=f"pa2_exporter {VERSION}")
     args = ap.parse_args()
+
+    if args.host is None:
+        args.host = os.environ.get("PA2_HOST")
+    if args.port is None:
+        args.port = env_number("PA2_PORT", DEFAULT_PORT, int, "an integer")
+    if args.password is None:
+        args.password = default_password()
+    if args.listen_addr is None:
+        args.listen_addr = os.environ.get("PA2_EXPORTER_ADDR", "0.0.0.0")
+    if args.listen_port is None:
+        args.listen_port = env_number("PA2_EXPORTER_PORT",
+                                      DEFAULT_EXPORTER_PORT, int, "an integer")
+    if args.window is None:
+        args.window = env_number("PA2_WINDOW_SECONDS", DEFAULT_WINDOW,
+                                 float, "a number")
+    if args.log_level is None:
+        args.log_level = os.environ.get("PA2_LOG_LEVEL", "info").lower()
+        # argparse checks `choices` for values it parsed, not for a default we
+        # supplied ourselves, so an unknown PA2_LOG_LEVEL would otherwise reach
+        # the logging module and raise there.
+        if args.log_level not in ("debug", "info", "warning", "error"):
+            raise SystemExit("PA2_LOG_LEVEL: expected debug, info, warning or "
+                             f"error, got {args.log_level!r}")
+
     if not args.host:
         ap.error("PA2 address required: set --host or PA2_HOST")
 

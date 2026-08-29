@@ -63,9 +63,13 @@ than the hardware is worse than no mock.
 ### Alert rules
 
 ```bash
-docker run --rm -v "$PWD:/w" -w /w prom/prometheus:v3.1.0 \
-    promtool test rules examples/alerts_test.yml
+docker run --rm --entrypoint=/bin/promtool -v "$PWD/examples:/w" -w /w \
+    prom/prometheus:v3.14.0 test rules alerts_test.yml
 ```
+
+`--entrypoint` is required: the image's default entrypoint is `prometheus`, so
+without it the arguments are handed to Prometheus and it exits complaining
+about an unexpected `promtool`.
 
 Every rule in `examples/alerts.yml` has a test. If you add a rule, add its test
 — CI runs the same command.

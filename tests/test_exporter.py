@@ -372,3 +372,63 @@ def test_version_falls_back_when_not_installed(monkeypatch):
 
     monkeypatch.setattr(ex, "_installed_version", missing)
     assert ex.resolve_version() == "unknown"
+
+
+# --- argument parsing under a broken environment ----------------------------
+
+BROKEN_ENV = [
+    ("PA2_PASSWORD_FILE", "/nonexistent/pa2-password"),
+    ("PA2_PORT", "notanumber"),
+    ("PA2_EXPORTER_PORT", "notanumber"),
+    ("PA2_WINDOW_SECONDS", "abc"),
+    ("PA2_LOG_LEVEL", "bogus"),
+]
+
+
+@pytest.mark.parametrize("var,value", BROKEN_ENV)
+@pytest.mark.parametrize("flag", ["--version", "--help"])
+def test_diagnostic_flags_survive_a_broken_environment(monkeypatch, capsys,
+                                                       var, value, flag):
+    """--version and --help are what you reach for when a deploy is broken.
+
+    Resolving these defaults while building the parser made them raise before
+    argparse could answer, so the diagnostics failed exactly when needed.
+    """
+    monkeypatch.setenv("PA2_HOST", "192.0.2.10")
+    monkeypatch.setenv(var, value)
+    monkeypatch.setattr("sys.argv", ["pa2-exporter", flag])
+
+    with pytest.raises(SystemExit) as exit_info:
+        ex.main()
+
+    assert exit_info.value.code == 0
+    assert capsys.readouterr().out.strip()
+
+
+@pytest.mark.parametrize("var,value", BROKEN_ENV)
+def test_broken_environment_fails_with_one_readable_line(monkeypatch, capsys,
+                                                         var, value):
+    monkeypatch.setenv("PA2_HOST", "192.0.2.10")
+    monkeypatch.setenv(var, value)
+    monkeypatch.setattr("sys.argv", ["pa2-exporter"])
+
+    with pytest.raises(SystemExit) as exit_info:
+        ex.main()
+
+    message = str(exit_info.value.code)
+    assert var in message
+    assert "Traceback" not in message
+
+
+def test_flags_win_over_a_broken_environment(monkeypatch):
+    """An explicit flag must not be poisoned by a bad env var it overrides."""
+    monkeypatch.setenv("PA2_PORT", "notanumber")
+    monkeypatch.setenv("PA2_HOST", "192.0.2.10")
+    monkeypatch.delenv("PA2_PASSWORD_FILE", raising=False)
+    monkeypatch.setattr("sys.argv", ["pa2-exporter", "--port", "19999",
+                                     "--version"])
+
+    with pytest.raises(SystemExit) as exit_info:
+        ex.main()
+
+    assert exit_info.value.code == 0
