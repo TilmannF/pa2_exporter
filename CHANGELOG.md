@@ -47,13 +47,12 @@ you need to update.
 ### Changed
 
 - **Default metrics port moved from 10048 to 10049.** 10049 is this exporter's
-  allocation in the [Prometheus default port allocation registry][ports]; 10048
-  was free when 0.2.x shipped but has since been allocated to another exporter.
+  allocation in the [Prometheus default port allocation registry](https://github.com/prometheus/prometheus/wiki/Default-port-allocations);
+  10048 was free when 0.2.x shipped but has since been allocated to another
+  exporter.
 
   *Upgrade note:* if you deployed 0.2.1 or earlier, either pin
   `PA2_EXPORTER_PORT=10048` or move your scrape target when you upgrade.
-
-[ports]: https://github.com/prometheus/prometheus/wiki/Default-port-allocations
 
 ## [0.2.1] — 2026-08-08
 

@@ -96,3 +96,19 @@ jobs:
           promtool check config prometheus.yml
           promtool check rules alerts.yml
           promtool test rules alerts_test.yml
+
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Release notes are extracted from CHANGELOG.md at tag time, and a tag is
+      # a bad moment to discover the section does not survive being lifted out.
+      # Every version the changelog claims must extract cleanly, today.
+      - name: Every changelog section extracts as usable release notes
+        run: |
+          versions=$(sed -n 's/^## \[\([0-9][^]]*\)\].*/\1/p' CHANGELOG.md)
+          test -n "$versions"
+          for v in $versions; do
+            echo "--- $v"
+            tools/changelog-section.sh "$v" >/dev/null
+          done
