@@ -70,8 +70,45 @@ docker run --rm -v "$PWD:/w" -w /w prom/prometheus:v3.1.0 \
 Every rule in `examples/alerts.yml` has a test. If you add a rule, add its test
 — CI runs the same command.
 
+## Sign your commits
+
+This repository enforces the [Developer Certificate of Origin](DCO) — a short
+statement that you wrote the patch, or otherwise have the right to submit it
+under this project's licence. It is not a copyright assignment and it does not
+give anyone rights over your work; you keep those.
+
+Certify it by adding a `Signed-off-by` line to every commit, which `git` writes
+for you with `-s`:
+
+```bash
+git commit -s -m "Your message"
+```
+
+```
+Signed-off-by: Your Name <your@email.example>
+```
+
+The name and address must be real and must match the commit author. A bot
+checks every pull request and blocks it if any commit is missing the line.
+
+Forgot on the last commit:
+
+```bash
+git commit --amend --signoff
+```
+
+Forgot across a branch — sign off the last N commits, then force-push:
+
+```bash
+git rebase HEAD~N --signoff
+git push --force-with-lease
+```
+
+Only rebase a branch nobody else is building on.
+
 ## Pull requests
 
+- Every commit carries a `Signed-off-by` line — see above.
 - Tests pass and `ruff check .` is clean; CI runs both across the supported
   Python range plus the version the container image ships.
 - New behaviour comes with a test. The suite is hardware-free by design; if

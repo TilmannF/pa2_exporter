@@ -22,6 +22,10 @@ you need to update.
   drift into something that does not load.
 - `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, issue templates and a pull
   request template.
+- The `DCO` file, and sign-off instructions in `CONTRIBUTING.md`, the README and
+  the pull request template. Sign-off was already enforced by a bot but written
+  down nowhere, so the first a contributor heard of it was a blocked pull
+  request.
 - Tagging a release now creates the GitHub release from that version's
   changelog section.
 - `pa2_exporter_build_info{version}`, reported even while the device is

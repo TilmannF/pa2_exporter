@@ -4,6 +4,9 @@
 
 ## Checklist
 
+- [ ] Every commit is signed off (`git commit -s`) — see [the DCO section of
+      CONTRIBUTING.md](https://github.com/TilmannF/pa2_exporter/blob/main/CONTRIBUTING.md#sign-your-commits).
+      A bot blocks the PR otherwise.
 - [ ] `pytest` passes and `ruff check .` is clean
 - [ ] New behaviour has a test, and the suite still runs without hardware
 - [ ] **The read-only guarantee is intact — no `set` commands, ever**

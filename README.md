@@ -375,8 +375,10 @@ Please keep the read-only guarantee intact: no `set` commands, ever. And never
 commit a device password — CI runs `gitleaks`, but the first line of defence is
 `PA2_PASSWORD_FILE`.
 
-[CONTRIBUTING.md](CONTRIBUTING.md) has the development loop, the hardware-free
-workflow and what a pull request needs. A report from a model or firmware this
+Commits need a `Signed-off-by` line (`git commit -s`) certifying the
+[Developer Certificate of Origin](DCO); a bot blocks pull requests without one.
+[CONTRIBUTING.md](CONTRIBUTING.md) has the details, along with the development
+loop, the hardware-free workflow and what a pull request needs. A report from a model or firmware this
 has never seen is welcome even when nothing worked — the issue templates ask for
 the parameter tree dump, which is the part that makes support possible.
 
