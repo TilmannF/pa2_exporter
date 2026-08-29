@@ -23,6 +23,14 @@ you need to update.
   while `hour()` asks about now, so a 15-minute lookback meant a change at 22:59
   fired at 23:00; the lookback is a minute, and `keep_firing_for` stops a change
   at 07:59 from vanishing the instant the clock reaches 8.
+- `--version` and `pa2_exporter_build_info` report the version of the code
+  that is running, rather than of whatever happens to be installed. The version
+  now lives in `pa2_exporter.__version__` and packaging reads it back from
+  there; previously a checkout ahead of an older install on `sys.path` — or
+  merely a stale `*.egg-info` in the repo root — made a 0.4.0 checkout advertise
+  0.3.0, in exactly the from-a-checkout workflow the bug report template asks
+  people to run. A checkout with no packaging metadata at all now reports its
+  real version instead of `unknown`.
 - `--version` and `--help` work when the environment is broken. Both used to
   raise before argparse could answer them, because defaults such as
   `PA2_PASSWORD_FILE` and `PA2_PORT` were resolved while the parser was being

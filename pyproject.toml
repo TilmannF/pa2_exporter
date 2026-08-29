@@ -1,6 +1,9 @@
 [project]
 name = "pa2_exporter"
-version = "0.4.0"
+# Read back from pa2_exporter.__version__ so the running file is the single
+# source of truth; importlib.metadata would otherwise report whatever is
+# installed, which is not necessarily what is executing.
+dynamic = ["version"]
 description = "Prometheus exporter for the dbx DriveRack PA2 loudspeaker management system"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -24,6 +27,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 py-modules = ["pa2_exporter", "pa2_poc"]
+
+[tool.setuptools.dynamic]
+version = {attr = "pa2_exporter.__version__"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

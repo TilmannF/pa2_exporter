@@ -125,6 +125,16 @@ Only rebase a branch nobody else is building on.
 - Commit messages explain *why*, not just what. The history is the best
   documentation this protocol has.
 
+## Releasing
+
+The version lives in `pa2_exporter.__version__`, **not** in `pyproject.toml` —
+packaging reads it back from the module, so the file being executed is always
+the one that answers `--version`. To cut a release: bump that attribute,
+promote `## [Unreleased]` in `CHANGELOG.md` to the new version with today's
+date, update the compare links at the bottom, then tag `vX.Y.Z`. Pushing the
+tag builds the images and creates the GitHub release from that changelog
+section.
+
 ## Reporting a vulnerability
 
 See [SECURITY.md](SECURITY.md) — please do not open a public issue for one.

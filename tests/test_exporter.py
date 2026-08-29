@@ -364,16 +364,30 @@ def test_build_info_survives_the_device_going_dark(reader):
         reader.state.connected = False
     snapshot = collect(reader.state)
     assert snapshot[("pa2_exporter_build_info",
-                     frozenset({("version", ex.VERSION)}))] == 1.0
+                     frozenset({("version", ex.__version__)}))] == 1.0
 
 
-def test_version_falls_back_when_not_installed(monkeypatch):
-    # Running from a source checkout — normal while probing an unfamiliar unit.
-    def missing(_name):
-        raise ex.PackageNotFoundError
+def test_version_comes_from_the_running_module(monkeypatch):
+    """Not from importlib.metadata, which reports whatever is *installed*.
 
-    monkeypatch.setattr(ex, "_installed_version", missing)
-    assert ex.resolve_version() == "unknown"
+    A checkout ahead of an older install on sys.path — or just a stale
+    *.egg-info in the repo root — used to make --version and build_info
+    advertise a release that is not the code being executed.
+    """
+    import importlib.metadata
+
+    def wrong(_name):
+        return "9.9.9-not-what-is-running"
+
+    monkeypatch.setattr(importlib.metadata, "version", wrong)
+    assert ex.__version__ != "9.9.9-not-what-is-running"
+    assert ex.__version__.strip()
+
+
+def test_packaging_metadata_matches_the_module():
+    """pyproject reads the version back from the module; keep that wired up."""
+    from importlib.metadata import version as installed_version
+    assert installed_version("pa2_exporter") == ex.__version__
 
 
 # --- argument parsing under a broken environment ----------------------------

@@ -32,8 +32,6 @@ import socketserver
 import threading
 import time
 from collections import defaultdict, deque
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as _installed_version
 from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
 
 from prometheus_client import make_wsgi_app
@@ -43,26 +41,20 @@ from prometheus_client.core import (
     GaugeMetricFamily,
 )
 
+# The single source of truth for the version, deliberately here rather than in
+# pyproject.toml, which reads it back from this attribute. importlib.metadata
+# answers "what is installed", not "what is running": with a checkout on
+# sys.path ahead of an older install — or merely a stale *.egg-info left in the
+# repo root, which wins because '' leads sys.path — it cheerfully reports a
+# version that is not this file. The bug report template asks contributors for
+# `pa2-exporter --version`, and the people running from a checkout are exactly
+# the ones filing hardware reports, so it has to be the truth.
+__version__ = "0.4.0"
+
 DEFAULT_PORT = 19272
 DEFAULT_PASSWORD = "administrator"
 DEFAULT_EXPORTER_PORT = 10049
 DEFAULT_WINDOW = 15.0
-
-
-def resolve_version():
-    """Installed distribution version, or "unknown" from a source checkout.
-
-    Running the script straight out of a clone is a normal thing to do while
-    probing an unfamiliar unit; not knowing the version is better than refusing
-    to start over it.
-    """
-    try:
-        return _installed_version("pa2_exporter")
-    except PackageNotFoundError:
-        return "unknown"
-
-
-VERSION = resolve_version()
 
 BANDS = ("High", "Mid", "Low")
 CHANNELS = ("Left", "Right")
@@ -375,7 +367,7 @@ class PA2Collector:
         fam = GaugeMetricFamily(
             "pa2_exporter_build_info", "Exporter build information",
             labels=["version"])
-        fam.add_metric([VERSION], 1.0)
+        fam.add_metric([__version__], 1.0)
         yield fam
 
         yield GaugeMetricFamily(
@@ -587,7 +579,7 @@ def main():
                     choices=("debug", "info", "warning", "error"),
                     help="log verbosity (env: PA2_LOG_LEVEL, default info)")
     ap.add_argument("--version", action="version",
-                    version=f"pa2_exporter {VERSION}")
+                    version=f"pa2_exporter {__version__}")
     args = ap.parse_args()
 
     if args.host is None:
@@ -623,7 +615,7 @@ def main():
     PA2Reader(state, args.host, args.port, args.password).start()
     serve_metrics(args.listen_addr, args.listen_port)
     log.info("pa2_exporter %s listening on %s:%s, PA2 at %s:%s, window %gs",
-             VERSION, args.listen_addr, args.listen_port,
+             __version__, args.listen_addr, args.listen_port,
              args.host, args.port, args.window)
 
     # `docker stop` sends SIGTERM; without a handler the default disposition
