@@ -29,6 +29,8 @@ you need to update.
   running.
 - `--version`, and a landing page at `/` linking to `/metrics`.
 - `--log-level` / `PA2_LOG_LEVEL` (`debug`, `info`, `warning`, `error`).
+- `contrib/pa2_exporter.service`, a hardened systemd unit for non-container
+  deployments, taking the device password from systemd's credential store.
 
 ### Changed
 

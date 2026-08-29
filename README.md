@@ -39,6 +39,20 @@ pip install .
 PA2_HOST=192.0.2.10 PA2_PASSWORD=secret pa2-exporter
 ```
 
+For a permanent non-container deployment,
+[`contrib/pa2_exporter.service`](contrib/pa2_exporter.service) is a hardened
+systemd unit — `DynamicUser`, an empty capability set, `ProtectSystem=strict`,
+and the device password handed over through systemd's credential store rather
+than the environment, where `/proc/<pid>/environ` would expose it:
+
+```bash
+sudo cp contrib/pa2_exporter.service /etc/systemd/system/
+echo PA2_HOST=192.0.2.10 | sudo tee /etc/default/pa2_exporter
+sudo install -d -m 0700 /etc/pa2_exporter
+sudo install -m 0600 /dev/stdin /etc/pa2_exporter/password   # paste, then ^D
+sudo systemctl daemon-reload && sudo systemctl enable --now pa2_exporter
+```
+
 Prometheus scrape config:
 
 ```yaml
@@ -313,7 +327,7 @@ console.
 
 ```bash
 pip install -e ".[dev]"
-pytest          # 18 tests, no hardware required
+pytest          # the whole suite, no hardware required
 ruff check .
 ```
 
@@ -389,6 +403,8 @@ worth a look if this exporter is not what you need:
   — pushes Loudspeaker Processor Interchange Format tunings to DriveRack units
 
 ## Roadmap
+
+Released changes are in [CHANGELOG.md](CHANGELOG.md).
 
 - [x] Protocol PoC against real hardware
 - [x] Exporter with reconnect loop and rolling-window statistics

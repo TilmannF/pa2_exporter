@@ -1,0 +1,60 @@
+# systemd unit for pa2_exporter, for deployments that are not containerised.
+#
+#   sudo cp contrib/pa2_exporter.service /etc/systemd/system/
+#   sudo install -m 0600 /dev/stdin /etc/pa2_exporter/password  # paste, then ^D
+#   sudo systemctl daemon-reload && sudo systemctl enable --now pa2_exporter
+#
+# Assumes `pip install pa2_exporter` put the entry point on the system path.
+# Adjust ExecStart if you installed into a virtualenv.
+
+[Unit]
+Description=Prometheus exporter for the dbx DriveRack PA2
+Documentation=https://github.com/TilmannF/pa2_exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/pa2-exporter
+
+# The device address and anything else non-secret. Create this file with at
+# least PA2_HOST=; the exporter refuses to start without it.
+EnvironmentFile=/etc/default/pa2_exporter
+
+# The password goes through systemd's credential store rather than the
+# environment: PA2_PASSWORD would be readable in /proc/<pid>/environ by anyone
+# on the host. %d expands to the credentials directory, which is a private
+# tmpfs mount visible only to this unit.
+LoadCredential=pa2_password:/etc/pa2_exporter/password
+Environment=PA2_PASSWORD_FILE=%d/pa2_password
+
+Restart=on-failure
+RestartSec=5s
+
+# The exporter needs one outbound TCP connection and one listening socket.
+# Nothing else, so take everything else away — same posture as the shipped
+# compose file (read_only, cap_drop: ALL, no-new-privileges).
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
