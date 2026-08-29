@@ -108,6 +108,15 @@ INFO_GETS = [r"\\Node\AT\Instance_Name", r"\\Node\AT\Software_Version"]
 
 QUOTED = re.compile(r'"([^"]*)"')
 
+# `connect administrator "<password>"` is the one line we send that carries a
+# secret, and debug logs are pasted into bug reports.
+CONNECT_PASSWORD = re.compile(r'^(connect\s+\S+\s+")[^"]*(")')
+
+
+def redact(line):
+    """Mask the password in a connect line; every other line is safe as-is."""
+    return CONNECT_PASSWORD.sub(r"\1********\2", line)
+
 
 log = logging.getLogger("pa2_exporter")
 
@@ -222,6 +231,7 @@ class PA2Reader(threading.Thread):
             sock.close()
 
     def send_line(self, line):
+        log.debug("> %s", redact(line))
         self.sock.sendall(line.encode("ascii") + b"\r\n")
 
     def read_line(self, timeout):
@@ -238,6 +248,11 @@ class PA2Reader(threading.Thread):
         return raw.decode("ascii", errors="replace").rstrip("\r")
 
     def handle_line(self, line):
+        # Every line the device sends passes through here, so this is the one
+        # place that makes `--log-level debug` a real protocol trace — which is
+        # what a hardware report from an unfamiliar model needs. Verbose by
+        # design: the meters push at ~13 Hz.
+        log.debug("< %s", line)
         cmd, _, rest = line.partition(" ")
         fields = QUOTED.findall(rest)
         if cmd == "get" and len(fields) >= 2:

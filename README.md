@@ -80,7 +80,7 @@ quietly returning metrics anyway.
 | `PA2_EXPORTER_ADDR` | `--listen-addr` | `0.0.0.0` |
 | `PA2_EXPORTER_PORT` | `--listen-port` | `10049` (see note) |
 | `PA2_WINDOW_SECONDS` | `--window` | `15` |
-| `PA2_LOG_LEVEL` | `--log-level` | `info` — `debug`, `info`, `warning` or `error` |
+| `PA2_LOG_LEVEL` | `--log-level` | `info` — `debug`, `info`, `warning` or `error`; `debug` traces every protocol line, with the password masked |
 
 The password is the one set in the PA2's network security settings, which is
 also what its control app asks for; `administrator` is the factory default.

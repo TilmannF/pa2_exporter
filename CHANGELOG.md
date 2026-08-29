@@ -14,6 +14,15 @@ you need to update.
 
 ### Fixed
 
+- `--log-level debug` now actually traces the protocol. It was advertised, and
+  the bug report template asked for it, but the module contained no debug
+  records at all, so it was identical to `info`. The password is masked in the
+  `connect` line, since debug output gets pasted into public issues.
+- `PA2SettingsChangedOffHours` no longer pages for a legitimate change made
+  shortly before the off-hours boundary. `increase()` asks about a past range
+  while `hour()` asks about now, so a 15-minute lookback meant a change at 22:59
+  fired at 23:00; the lookback is a minute, and `keep_firing_for` stops a change
+  at 07:59 from vanishing the instant the clock reaches 8.
 - `--version` and `--help` work when the environment is broken. Both used to
   raise before argparse could answer them, because defaults such as
   `PA2_PASSWORD_FILE` and `PA2_PORT` were resolved while the parser was being

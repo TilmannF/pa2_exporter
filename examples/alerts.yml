@@ -116,7 +116,20 @@ groups:
         # is "nobody should be in the rack right now" for one particular room.
         # Adjust the window, or drop this rule if your PA gets touched at all
         # hours legitimately.
-        expr: increase(pa2_settings_changes_total[15m]) > 0 and on() (hour() >= 23 or hour() < 8)
+        #
+        # The lookback is deliberately short. `increase()` asks about a past
+        # range while `hour()` asks about now, so the two describe different
+        # periods and a wide range straddles the boundary: with [15m], a
+        # perfectly legitimate change at 22:59 would page at 23:00. One minute
+        # bounds that mismatch to a minute — it cannot be eliminated in PromQL
+        # without recording when the change happened, which is not worth a
+        # second rule here.
+        #
+        # keep_firing_for covers the other edge: a change at 07:59 fires, and
+        # would otherwise stop the instant hour() reaches 8, quite possibly
+        # before anyone was notified.
+        expr: increase(pa2_settings_changes_total[1m]) > 0 and on() (hour() >= 23 or hour() < 8)
+        keep_firing_for: 15m
         labels:
           severity: warning
         annotations:

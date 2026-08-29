@@ -171,13 +171,71 @@ tests:
 
   # --- configuration -------------------------------------------------------
 
+  # Test time starts at the Unix epoch, so eval_time doubles as a clock:
+  # 0m is 00:00 UTC, 480m is 08:00, 1380m is 23:00.
   - name: somebody changes settings in the middle of the night
-    interval: 1m
+    interval: 30s
     input_series:
       - series: 'pa2_settings_changes_total{job="pa2", instance="pa2:10049", module="limiter"}'
-        values: "0 0 0 1 1 1 1 1 1 1 1"
+        # Range selectors are left-open, (t-1m, t], so with a 30s interval
+        # the window holds two samples; the step has to fall between them.
+        values: "0x9 1x60"          # first "1" lands exactly at 00:05
     alert_rule_test:
-      - eval_time: 6m
+      - eval_time: 5m
+        alertname: PA2SettingsChangedOffHours
+        exp_alerts:
+          - exp_labels:
+              job: pa2
+              instance: pa2:10049
+              module: limiter
+              severity: warning
+            exp_annotations:
+              summary: "PA2 limiter settings changed outside show hours"
+              description: "Somebody changed limiter on the PA2 outside the hours anyone is expected to be at the rack."
+
+  - name: a daytime settings change is nobody's business
+    interval: 30s
+    input_series:
+      # Change at 12:00, squarely inside show hours.
+      - series: 'pa2_settings_changes_total{job="pa2", instance="pa2:10049", module="limiter"}'
+        values: "0x1440 1x40"
+    alert_rule_test:
+      - eval_time: 721m
+        alertname: PA2SettingsChangedOffHours
+        exp_alerts: []
+
+  - name: a change just before 23:00 does not page at 23:00
+    interval: 30s
+    input_series:
+      # 22:50 — legitimate, and ten minutes clear of the boundary. With the old
+      # 15m lookback this fired the moment hour() reached 23.
+      - series: 'pa2_settings_changes_total{job="pa2", instance="pa2:10049", module="limiter"}'
+        values: "0x2740 1x60"
+    alert_rule_test:
+      - eval_time: 1381m
+        alertname: PA2SettingsChangedOffHours
+        exp_alerts: []
+
+  - name: a change at 07:59 keeps firing past 08:00
+    interval: 30s
+    input_series:
+      # keep_firing_for: without it the alert vanishes the instant hour() hits
+      # 8, quite possibly before anyone was notified.
+      - series: 'pa2_settings_changes_total{job="pa2", instance="pa2:10049", module="limiter"}'
+        values: "0x957 1x60"        # first "1" lands exactly at 07:59
+    alert_rule_test:
+      - eval_time: 479m       # fires while still off-hours
+        alertname: PA2SettingsChangedOffHours
+        exp_alerts:
+          - exp_labels:
+              job: pa2
+              instance: pa2:10049
+              module: limiter
+              severity: warning
+            exp_annotations:
+              summary: "PA2 limiter settings changed outside show hours"
+              description: "Somebody changed limiter on the PA2 outside the hours anyone is expected to be at the rack."
+      - eval_time: 485m       # 08:05, still firing thanks to keep_firing_for
         alertname: PA2SettingsChangedOffHours
         exp_alerts:
           - exp_labels:

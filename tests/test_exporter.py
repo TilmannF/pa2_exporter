@@ -5,6 +5,8 @@ recorded from a real PA2 (firmware 1.2.0.1), and its socket is a stub that
 only records what the exporter would have sent back.
 """
 
+import logging
+
 import pytest
 
 import pa2_exporter as ex
@@ -432,3 +434,38 @@ def test_flags_win_over_a_broken_environment(monkeypatch):
         ex.main()
 
     assert exit_info.value.code == 0
+
+
+# --- debug logging ----------------------------------------------------------
+
+def test_debug_level_traces_the_protocol(reader, caplog):
+    """--log-level debug is advertised, and the bug template asks for it."""
+    with caplog.at_level(logging.DEBUG, logger="pa2_exporter"):
+        reader.send_line('get "\\\\Node\\AT\\Software_Version"')
+        reader.handle_line(
+            r'subr "\\Preset\InputMeters\SV\LeftInput\*" "-20.0dB" "-20.0" '
+            r'"50%" "-20.0"')
+
+    assert "> get" in caplog.text
+    assert "< subr" in caplog.text
+
+
+def test_info_level_stays_quiet(reader, caplog):
+    with caplog.at_level(logging.INFO, logger="pa2_exporter"):
+        reader.send_line('get "\\\\Node\\AT\\Software_Version"')
+    assert caplog.text == ""
+
+
+def test_debug_never_logs_the_password(reader, caplog):
+    """Debug output gets pasted into public issues."""
+    with caplog.at_level(logging.DEBUG, logger="pa2_exporter"):
+        reader.send_line('connect administrator "hunter2"')
+
+    assert "hunter2" not in caplog.text
+    assert "********" in caplog.text
+    assert "connect administrator" in caplog.text   # still diagnosable
+
+
+def test_redact_leaves_ordinary_lines_alone():
+    line = r'sub "\\Preset\InputMeters\SV\LeftInput\*"'
+    assert ex.redact(line) == line
