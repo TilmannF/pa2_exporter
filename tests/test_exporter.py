@@ -310,3 +310,65 @@ def test_password_file_wins_and_strips_newline(monkeypatch, tmp_path):
     monkeypatch.setenv("PA2_PASSWORD", "from-env")
     monkeypatch.setenv("PA2_PASSWORD_FILE", str(secret))
     assert ex.default_password() == "from-file"
+
+
+# --- HTTP surface -----------------------------------------------------------
+
+def request(app, path):
+    """Drive a WSGI app by hand; returns (status, headers dict, body bytes)."""
+    captured = {}
+
+    def start_response(status, headers):
+        captured["status"] = status
+        captured["headers"] = dict(headers)
+
+    body = b"".join(app({"PATH_INFO": path, "REQUEST_METHOD": "GET"},
+                        start_response))
+    return captured["status"], captured["headers"], body
+
+
+@pytest.fixture
+def app():
+    # An empty registry: these tests are about routing, not about content.
+    from prometheus_client import CollectorRegistry
+    return ex.make_app(CollectorRegistry())
+
+
+def test_root_serves_a_landing_page(app):
+    status, headers, body = request(app, "/")
+    assert status.startswith("200")
+    assert headers["Content-Type"].startswith("text/html")
+    assert b"/metrics" in body
+
+
+def test_metrics_path_serves_the_exposition(app):
+    status, headers, _ = request(app, "/metrics")
+    assert status.startswith("200")
+    assert "text/plain" in headers["Content-Type"]
+
+
+def test_unknown_path_is_not_silently_metrics(app):
+    # prometheus_client's own WSGI app answers every path with the exposition,
+    # so a typo'd scrape path would succeed and hide the mistake.
+    status, _, body = request(app, "/metric")
+    assert status.startswith("404")
+    assert b"/metrics" in body
+
+
+# --- version reporting ------------------------------------------------------
+
+def test_build_info_survives_the_device_going_dark(reader):
+    with reader.state.lock:
+        reader.state.connected = False
+    snapshot = collect(reader.state)
+    assert snapshot[("pa2_exporter_build_info",
+                     frozenset({("version", ex.VERSION)}))] == 1.0
+
+
+def test_version_falls_back_when_not_installed(monkeypatch):
+    # Running from a source checkout — normal while probing an unfamiliar unit.
+    def missing(_name):
+        raise ex.PackageNotFoundError
+
+    monkeypatch.setattr(ex, "_installed_version", missing)
+    assert ex.resolve_version() == "unknown"

@@ -19,9 +19,11 @@ Configuration (env var / flag):
   PA2_PASSWORD_FILE                read the password from a file (Docker/K8s secrets)
   PA2_EXPORTER_PORT / --listen-port  metrics listen port (default 10049)
   PA2_WINDOW_SECONDS / --window    rolling stats window (default 15)
+  PA2_LOG_LEVEL / --log-level      debug, info, warning or error (default info)
 """
 
 import argparse
+import logging
 import os
 import re
 import signal
@@ -30,6 +32,8 @@ import socketserver
 import threading
 import time
 from collections import defaultdict, deque
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _installed_version
 from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
 
 from prometheus_client import make_wsgi_app
@@ -43,6 +47,22 @@ DEFAULT_PORT = 19272
 DEFAULT_PASSWORD = "administrator"
 DEFAULT_EXPORTER_PORT = 10049
 DEFAULT_WINDOW = 15.0
+
+
+def resolve_version():
+    """Installed distribution version, or "unknown" from a source checkout.
+
+    Running the script straight out of a clone is a normal thing to do while
+    probing an unfamiliar unit; not knowing the version is better than refusing
+    to start over it.
+    """
+    try:
+        return _installed_version("pa2_exporter")
+    except PackageNotFoundError:
+        return "unknown"
+
+
+VERSION = resolve_version()
 
 BANDS = ("High", "Mid", "Low")
 CHANNELS = ("Left", "Right")
@@ -89,8 +109,18 @@ INFO_GETS = [r"\\Node\AT\Instance_Name", r"\\Node\AT\Software_Version"]
 QUOTED = re.compile(r'"([^"]*)"')
 
 
-def log(msg):
-    print(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {msg}", flush=True)
+log = logging.getLogger("pa2_exporter")
+
+
+def configure_logging(level):
+    """Timestamp first, as before, now with a level in front of the message."""
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(
+        fmt="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S"))
+    root = logging.getLogger()
+    root.handlers[:] = [handler]
+    root.setLevel(level.upper())
 
 
 class State:
@@ -154,7 +184,7 @@ class PA2Reader(threading.Thread):
                 # session failure: socket errors, protocol surprises, a device
                 # rebooting mid-push. Dying here would leave a live exporter
                 # permanently reporting pa2_up 0.
-                log(f"session error: {exc!r}, reconnecting in {backoff}s")
+                log.warning("session error: %r, reconnecting in %ss", exc, backoff)
             with self.state.lock:
                 if self.state.connected:
                     self.state.reconnects += 1
@@ -181,7 +211,7 @@ class PA2Reader(threading.Thread):
             with self.state.lock:
                 self.state.forget_device_state()
                 self.state.connected = True
-            log(f"connected to {self.host}:{self.port}")
+            log.info("connected to %s:%s", self.host, self.port)
             while True:
                 # Meters push constantly; a long silence means a dead session.
                 line = self.read_line(60.0)
@@ -323,6 +353,16 @@ class PA2Collector:
             instance_name = st.instance_name
             firmware = st.firmware
 
+        # Ungated on purpose: unlike everything below, this describes the
+        # exporter, not the device, so it must still be there when the rack is
+        # dark — that is exactly when somebody is asking which version is
+        # running.
+        fam = GaugeMetricFamily(
+            "pa2_exporter_build_info", "Exporter build information",
+            labels=["version"])
+        fam.add_metric([VERSION], 1.0)
+        yield fam
+
         yield GaugeMetricFamily(
             "pa2_up", "PA2 session established and authenticated",
             value=1.0 if connected else 0.0)
@@ -420,8 +460,51 @@ class SilentHandler(WSGIRequestHandler):
         return self.client_address[0]  # skip reverse DNS per request too
 
 
+LANDING_PAGE = b"""<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>pa2_exporter</title></head>
+<body>
+<h1>pa2_exporter</h1>
+<p>Prometheus exporter for the dbx DriveRack PA2 loudspeaker management
+system. Read-only: this exporter never writes to the device.</p>
+<p><a href="/metrics">Metrics</a></p>
+</body>
+</html>
+"""
+
+
+def make_app(registry=REGISTRY):
+    """Route by path: a landing page at /, metrics at /metrics, 404 elsewhere.
+
+    prometheus_client's WSGI app answers *every* path with the full exposition,
+    for backwards compatibility. That makes / a wall of text in a browser and
+    lets a typo'd scrape path succeed silently, hiding the mistake until
+    somebody wonders why two jobs disagree. Route explicitly instead.
+    """
+    metrics_app = make_wsgi_app(registry)
+
+    def app(environ, start_response):
+        path = environ.get("PATH_INFO", "/")
+        if path in ("/metrics", "/metrics/"):
+            return metrics_app(environ, start_response)
+        if path in ("", "/"):
+            start_response("200 OK", [
+                ("Content-Type", "text/html; charset=utf-8"),
+                ("Content-Length", str(len(LANDING_PAGE))),
+            ])
+            return [LANDING_PAGE]
+        body = b"404 Not Found: try /metrics\n"
+        start_response("404 Not Found", [
+            ("Content-Type", "text/plain; charset=utf-8"),
+            ("Content-Length", str(len(body))),
+        ])
+        return [body]
+
+    return app
+
+
 def serve_metrics(addr, port):
-    httpd = make_server(addr, port, make_wsgi_app(), MetricsServer, SilentHandler)
+    httpd = make_server(addr, port, make_app(), MetricsServer, SilentHandler)
     threading.Thread(target=httpd.serve_forever, name="metrics-http",
                      daemon=True).start()
 
@@ -464,16 +547,25 @@ def main():
                                                  DEFAULT_WINDOW)),
                     help="rolling stats window in seconds "
                          f"(env: PA2_WINDOW_SECONDS, default {DEFAULT_WINDOW:g})")
+    ap.add_argument("--log-level",
+                    choices=("debug", "info", "warning", "error"),
+                    default=os.environ.get("PA2_LOG_LEVEL", "info").lower(),
+                    help="log verbosity (env: PA2_LOG_LEVEL, default info)")
+    ap.add_argument("--version", action="version",
+                    version=f"pa2_exporter {VERSION}")
     args = ap.parse_args()
     if not args.host:
         ap.error("PA2 address required: set --host or PA2_HOST")
+
+    configure_logging(args.log_level)
 
     state = State(args.window)
     REGISTRY.register(PA2Collector(state))
     PA2Reader(state, args.host, args.port, args.password).start()
     serve_metrics(args.listen_addr, args.listen_port)
-    log(f"exporter listening on {args.listen_addr}:{args.listen_port}, "
-        f"PA2 at {args.host}:{args.port}, window {args.window:g}s")
+    log.info("pa2_exporter %s listening on %s:%s, PA2 at %s:%s, window %gs",
+             VERSION, args.listen_addr, args.listen_port,
+             args.host, args.port, args.window)
 
     # `docker stop` sends SIGTERM; without a handler the default disposition
     # kills us mid-scrape and exits 143. Wake up and leave cleanly instead.
@@ -481,7 +573,7 @@ def main():
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stop.set())
     stop.wait()
-    log("shutting down")
+    log.info("shutting down")
 
 
 if __name__ == "__main__":

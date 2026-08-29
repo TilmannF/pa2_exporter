@@ -49,6 +49,10 @@ scrape_configs:
       - targets: ["pa2_exporter:10049"]
 ```
 
+The exporter serves `/metrics` and a small landing page at `/`. Every other
+path is a 404 — deliberately, so a typo'd scrape path fails loudly instead of
+quietly returning metrics anyway.
+
 ## Configuration
 
 | Env var | Flag | Default |
@@ -60,6 +64,7 @@ scrape_configs:
 | `PA2_EXPORTER_ADDR` | `--listen-addr` | `0.0.0.0` |
 | `PA2_EXPORTER_PORT` | `--listen-port` | `10049` (see note) |
 | `PA2_WINDOW_SECONDS` | `--window` | `15` |
+| `PA2_LOG_LEVEL` | `--log-level` | `info` — `debug`, `info`, `warning` or `error` |
 
 The password is the one set in the PA2's network security settings, which is
 also what its control app asks for; `administrator` is the factory default.
@@ -92,6 +97,7 @@ upgrade.
 | `pa2_preset_changes_total` | counter | preset recalls |
 | `pa2_device_info{firmware,instance_name}` | gauge | device identity |
 | `pa2_reconnects_total`, `pa2_last_push_timestamp_seconds` | | session health |
+| `pa2_exporter_build_info{version}` | gauge | exporter version; present even while the PA2 is dark |
 
 ### Design notes
 

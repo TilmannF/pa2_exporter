@@ -24,6 +24,21 @@ you need to update.
   request template.
 - Tagging a release now creates the GitHub release from that version's
   changelog section.
+- `pa2_exporter_build_info{version}`, reported even while the device is
+  unreachable — that is exactly when somebody needs to know which version is
+  running.
+- `--version`, and a landing page at `/` linking to `/metrics`.
+- `--log-level` / `PA2_LOG_LEVEL` (`debug`, `info`, `warning`, `error`).
+
+### Changed
+
+- Log lines now carry a level: `2026-08-29T14:03:37 INFO connected to ...`.
+  The timestamp format is unchanged.
+- **Only `/metrics` serves the exposition now.** `prometheus_client`'s WSGI app
+  answers every path with the full metrics text, so `/` used to return a wall
+  of text in a browser and a typo'd scrape path used to succeed silently. Other
+  paths now return 404. If you scrape something other than `/metrics`, fix the
+  path.
 
 ## [0.3.0] — 2026-08-08
 

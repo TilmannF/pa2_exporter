@@ -69,6 +69,11 @@ jobs:
           # A dark PA2 must still yield a scrapeable exporter reporting pa2_up 0.
           grep -q '^pa2_up 0.0$' /tmp/metrics
           grep -q '^pa2_input_clip_total{channel="left"} 0.0$' /tmp/metrics
+          # Which version is running must be answerable with the rack dark.
+          grep -q '^pa2_exporter_build_info{version="[^"]\+"} 1.0$' /tmp/metrics
+          # / is a landing page, and only /metrics serves the exposition.
+          curl -sf localhost:10049/ | grep -q '/metrics'
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:10049/nope)" = 404
           test "$(docker inspect -f '{{.Config.User}}' pa2_exporter:ci)" = "pa2"
           # SIGTERM handling: docker stop must not need the 10s grace period.
           start=$(date +%s)
