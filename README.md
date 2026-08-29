@@ -7,12 +7,14 @@ Prometheus exporter for the **dbx DriveRack PA2** loudspeaker management
 system. Monitors levels, limiter and compressor activity, mutes, preset state
 and settings changes over the PA2's network control protocol.
 
-Written for a small live venue that wanted its PA in the same monitoring stack
-as everything else: alert when the rack is dark, see how hard the limiters
-worked last night, and keep an audit trail of who changed what.
+Written for [Bunker Rostock](https://www.bunker-rostock.de/), a live venue that
+wanted its PA in the same monitoring stack as everything else: alert when the
+rack is dark, see how hard the limiters worked last night, and keep an audit
+trail of who changed what. It has been running there ever since.
 
-> **Status: alpha.** Verified against real hardware (firmware 1.2.0.1) and
-> running at one venue. Metric names and labels may still change before 1.0.
+> **Status: alpha.** Verified against real hardware (firmware 1.2.0.1) and in
+> regular use at the venue it was written for. Metric names and labels may
+> still change before 1.0.
 
 **Read-only by design.** The exporter only ever sends `connect`, `get`, `ls`
 and `sub`. It never sends `set`, so it cannot change your tunings, mutes or
@@ -383,6 +385,13 @@ issue for one.
 
 ## Credits
 
+- **[Kulturkombinat Bunker in Rostock e.V.](https://kulturkombinat-bunker.de/)**
+  — the non-profit association behind the cultural programme at
+  [Bunker Rostock](https://www.bunker-rostock.de/), of which the author is a
+  member. Most of what this exporter knows about the PA2 was learned against
+  that venue's rack, some of it mid-show: that the gain reduction meter is
+  latched, that the threshold meter needs windowing, and that a preset's unused
+  blocks go silent rather than reporting zero.
 - **[ForsakenHarmony's protocol notes](https://gist.github.com/ForsakenHarmony/8526cbf73e9bea9cf9811490fb743fc9)**
   — the starting point for this project. Documented the port, the `connect
   administrator` handshake and the `get`/`sub` verbs, which is exactly the part
